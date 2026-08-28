@@ -50,7 +50,12 @@
 - 실제 배포 도메인 연결 후 OG 이미지/메타 태그 보강
 
 ## Deployment
-- **Platform**: Cloudflare Pages (Hono + TypeScript + Vite)
-- **Status**: 로컬 샌드박스에서 동작 확인 완료, 프로덕션 배포는 대기 중
+- **Platform**: Cloudflare Pages (Hono + TypeScript + Vite) **또는** 일반 Node.js 컨테이너(Orbitron 등 Docker 기반 자동 배포)
+- **Status**: 로컬 샌드박스 및 두 배포 경로(Cloudflare Workers / Node 컨테이너) 모두 동작 확인 완료
 - **Tech Stack**: Hono, TypeScript, Vite, Cloudflare Pages, Vanilla Canvas2D/WebAudio JS
-- **Last Updated**: 2026-08-28
+- **듀얼 런타임 구조**:
+  - `src/app.tsx` — 런타임에 종속되지 않는 공유 Hono 앱/페이지 정의
+  - `src/index.tsx` — Cloudflare Workers 진입점 (`hono/cloudflare-workers`의 `serveStatic` 사용, `vite build` → `dist/_worker.js`)
+  - `src/server.node.ts` — Node.js 컨테이너 진입점 (`@hono/node-server`, `PORT` 환경변수 사용, `npm run build:node` → `dist-node/server.js`)
+  - `npm start` = `npm run build:node && node dist-node/server.js` — Docker/Orbitron 같은 컨테이너 배포가 기대하는 `npm start` 스크립트 제공
+- **Last Updated**: 2026-08-29
