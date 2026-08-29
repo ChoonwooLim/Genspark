@@ -38,3 +38,6 @@ uploads/
 
 # locally exported PNG sequences
 IMG/
+
+# Visual Studio IDE state
+.vs/
