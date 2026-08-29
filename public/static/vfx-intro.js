@@ -238,7 +238,7 @@ class PlazionIntro {
     this.soundOn = on;
   }
 
-  async exportPngSequence({ fps = 30, onProgress = () => {} } = {}) {
+  async exportPngSequence({ fps = 30, onProgress = () => {}, onFrame = null } = {}) {
     await this.ready;
     const safeFps = Math.max(1, Math.min(60, Math.round(fps)));
     const frameCount = Math.round(DURATION * safeFps);
@@ -265,7 +265,11 @@ class PlazionIntro {
             'image/png'
           );
         });
-        frames.push(blob);
+        if (onFrame) {
+          await onFrame(blob, frame, frameCount);
+        } else {
+          frames.push(blob);
+        }
         onProgress(frame + 1, frameCount);
         if (frame % 3 === 2) await new Promise((resolve) => requestAnimationFrame(resolve));
       }

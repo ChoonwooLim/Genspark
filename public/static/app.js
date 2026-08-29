@@ -14,6 +14,7 @@
   const exportStatusText = document.getElementById('export-status-text');
   const exportProgressValue = document.getElementById('export-progress-value');
   const exportProgressBar = document.getElementById('export-progress-bar');
+  const exportStatusNote = document.getElementById('export-status-note');
 
   let loops = 0;
   let soundEnabled = false;
@@ -116,13 +117,85 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  function getSequenceInfo(frameCount) {
+    return [
+      'PLAZION VFX Intro — Transparent PNG Sequence',
+      `Aspect: ${intro.aspect}`,
+      `Resolution: ${canvas.width}x${canvas.height}`,
+      'Frame rate: 30 fps',
+      `Frames: ${frameCount}`,
+      'Duration: 3.0 seconds',
+      'Alpha: transparent RGBA',
+    ].join('\n');
+  }
+
+  async function writeFile(directory, filename, contents) {
+    const fileHandle = await directory.getFileHandle(filename, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(contents);
+    await writable.close();
+  }
+
+  async function exportToSelectedFolder(rootDirectory) {
+    const folderName = `plazion_transparent_${canvas.width}x${canvas.height}_30fps`;
+    const outputDirectory = await rootDirectory.getDirectoryHandle(folderName, { create: true });
+    exportStatusNote.textContent = `선택한 위치의 ${folderName} 폴더에 PNG 90장을 저장합니다.`;
+
+    await intro.exportPngSequence({
+      fps: 30,
+      onFrame: async (blob, index) => {
+        const frameNumber = String(index).padStart(4, '0');
+        await writeFile(outputDirectory, `plazion_${frameNumber}.png`, blob);
+      },
+      onProgress: (current, total) => {
+        setExportProgress(current, total, `폴더에 저장 중 · ${current}/${total}`);
+      },
+    });
+    await writeFile(outputDirectory, 'sequence-info.txt', getSequenceInfo(90));
+    exportStatus.classList.add('is-complete');
+    setExportProgress(90, 90, `저장 완료 · ${folderName}`);
+  }
+
+  async function exportAsZipFallback() {
+    if (!window.JSZip) throw new Error('이 브라우저에서는 폴더 저장을 지원하지 않으며 ZIP 모듈도 불러오지 못했습니다.');
+    exportStatusNote.textContent = '이 브라우저는 폴더 직접 저장을 지원하지 않아 ZIP 파일로 다운로드합니다.';
+    const result = await intro.exportPngSequence({
+      fps: 30,
+      onProgress: (current, total) => {
+        const renderProgress = Math.round((current / total) * 85);
+        setExportProgress(renderProgress, 100, `PNG 프레임 생성 중 · ${current}/${total}`);
+      },
+    });
+    const zip = new window.JSZip();
+    const folder = zip.folder('plazion_png_sequence');
+    result.frames.forEach((blob, index) => {
+      folder.file(`plazion_${String(index).padStart(4, '0')}.png`, blob);
+    });
+    folder.file('sequence-info.txt', getSequenceInfo(result.frames.length));
+    setExportProgress(85, 100, 'ZIP 패키징 중');
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, (metadata) => {
+      setExportProgress(85 + Math.round(metadata.percent * 0.15), 100, 'ZIP 패키징 중');
+    });
+    downloadBlob(zipBlob, `plazion_transparent_${canvas.width}x${canvas.height}_30fps.zip`);
+    exportStatus.classList.add('is-complete');
+    setExportProgress(100, 100, `완료 · PNG ${result.frames.length}장 ZIP 다운로드`);
+  }
+
   downloadSequenceBtn.addEventListener('click', async () => {
     if (isExporting) return;
-    if (!window.JSZip) {
-      exportStatus.hidden = false;
-      exportStatus.classList.add('is-error');
-      exportStatusText.textContent = 'ZIP 모듈을 불러오지 못했습니다. 네트워크 연결을 확인해 주세요.';
-      return;
+
+    let directoryHandle = null;
+    if ('showDirectoryPicker' in window) {
+      try {
+        directoryHandle = await window.showDirectoryPicker({
+          id: 'plazion-png-sequence',
+          mode: 'readwrite',
+          startIn: 'desktop',
+        });
+      } catch (error) {
+        if (error && error.name === 'AbortError') return;
+        console.error(error);
+      }
     }
 
     isExporting = true;
@@ -130,55 +203,25 @@
     exportStatus.classList.remove('is-error', 'is-complete');
     downloadSequenceBtn.disabled = true;
     aspectBtns.forEach((btn) => { btn.disabled = true; });
-    sequenceLabel.textContent = 'PNG 렌더링 중…';
+    sequenceLabel.textContent = directoryHandle ? '폴더에 저장 중…' : 'ZIP 생성 중…';
     setExportProgress(0, 90, 'PNG 프레임 준비 중');
 
     try {
-      const result = await intro.exportPngSequence({
-        fps: 30,
-        onProgress: (current, total) => {
-          const renderProgress = Math.round((current / total) * 85);
-          setExportProgress(renderProgress, 100, `PNG 프레임 생성 중 · ${current}/${total}`);
-        },
-      });
-      const zip = new window.JSZip();
-      const folder = zip.folder('plazion_png_sequence');
-      result.frames.forEach((blob, index) => {
-        const frameNumber = String(index).padStart(4, '0');
-        folder.file(`plazion_${frameNumber}.png`, blob);
-      });
-      folder.file('sequence-info.txt', [
-        'PLAZION VFX Intro — Transparent PNG Sequence',
-        `Aspect: ${result.aspect}`,
-        `Resolution: ${canvas.width}x${canvas.height}`,
-        `Frame rate: ${result.fps} fps`,
-        `Frames: ${result.frames.length}`,
-        `Duration: ${result.duration.toFixed(1)} seconds`,
-        'Alpha: transparent RGBA',
-      ].join('\n'));
-
-      setExportProgress(85, 100, 'ZIP 패키징 중');
-      const zipBlob = await zip.generateAsync(
-        { type: 'blob', compression: 'STORE' },
-        (metadata) => {
-          const progress = 85 + Math.round(metadata.percent * 0.15);
-          setExportProgress(progress, 100, 'ZIP 패키징 중');
-        }
-      );
-      const dimensions = `${canvas.width}x${canvas.height}`;
-      downloadBlob(zipBlob, `plazion_transparent_${dimensions}_30fps.zip`);
-      exportStatus.classList.add('is-complete');
-      setExportProgress(100, 100, `완료 · PNG ${result.frames.length}장 다운로드`);
+      if (directoryHandle) {
+        await exportToSelectedFolder(directoryHandle);
+      } else {
+        await exportAsZipFallback();
+      }
     } catch (error) {
       console.error(error);
       exportStatus.classList.add('is-error');
-      exportStatusText.textContent = error instanceof Error ? error.message : 'PNG 시퀀스 생성에 실패했습니다.';
+      exportStatusText.textContent = error instanceof Error ? error.message : 'PNG 시퀀스 저장에 실패했습니다.';
       exportProgressValue.textContent = '오류';
     } finally {
       isExporting = false;
       downloadSequenceBtn.disabled = false;
       aspectBtns.forEach((btn) => { btn.disabled = false; });
-      sequenceLabel.textContent = '투명 PNG 시퀀스';
+      sequenceLabel.textContent = '폴더에 PNG 시퀀스 저장';
     }
   });
 

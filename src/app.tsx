@@ -103,7 +103,7 @@ export function createApp() {
                 </a>
                 <button id="download-sequence" type="button" class="ctrl-btn ctrl-btn--primary">
                   <i class="fa-solid fa-file-zipper"></i>
-                  <span id="sequence-label">투명 PNG 시퀀스</span>
+                  <span id="sequence-label">폴더에 PNG 시퀀스 저장</span>
                 </button>
               </div>
               <div id="export-status" class="export-status" role="status" aria-live="polite" hidden>
@@ -114,7 +114,7 @@ export function createApp() {
                 <div class="export-progress" aria-hidden="true">
                   <span id="export-progress-bar"></span>
                 </div>
-                <p>현재 화면비 · 30fps · 3초 · PNG 90장을 ZIP으로 저장합니다.</p>
+                <p id="export-status-note">현재 화면비 · 30fps · 3초 · 투명 PNG 90장을 선택한 폴더에 저장합니다.</p>
               </div>
             </div>
           </section>
