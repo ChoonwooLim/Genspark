@@ -667,6 +667,16 @@
 
   Promise.all([loadProjects(), loadPresets()]).catch(() => setStorageMode('local', '브라우저 임시 저장 모드'));
 
+  // Minimal surface for handoff.js, which lives in its own file so the two
+  // panels can be edited independently.
+  window.PlazionStudio = {
+    setLogo,
+    applySettings,
+    setProjectName(name) {
+      els.projectName.value = String(name || '').slice(0, 120);
+    },
+  };
+
   const importFromQuery = new URLSearchParams(window.location.search).get('genspark_image');
   if (importFromQuery) {
     setSourceMode('import');

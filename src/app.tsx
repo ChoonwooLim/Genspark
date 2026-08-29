@@ -334,6 +334,30 @@ export function createApp(options: AppOptions = {}) {
           </section>
 
           {/* ===== Project Library ===== */}
+          {/* ===== Genspark Handoff Bundles ===== */}
+          <section id="handoff-section" class="handoff-section" hidden>
+            <header class="section-heading">
+              <div>
+                <p class="eyebrow">GENSPARK PROJECT HANDOFF</p>
+                <h2>핸드오프 가져오기</h2>
+                <p>Genspark가 내보낸 <code>project.zip</code>을 통째로 가져옵니다 — HTML 프로토타입, 애니메이션 참조 코드, 로고와 에셋, 스펙(해상도·FPS·타임라인), Remotion 프로젝트까지.</p>
+              </div>
+            </header>
+
+            <label id="handoff-dropzone" class="handoff-dropzone" for="handoff-upload">
+              <input id="handoff-upload" type="file" accept=".zip,application/zip" hidden />
+              <i class="fa-solid fa-file-zipper"></i>
+              <strong>project.zip 을 여기에 놓거나 클릭해 선택</strong>
+              <span>README의 마스터 스펙과 타임라인을 자동으로 읽어옵니다</span>
+            </label>
+
+            <p id="handoff-status" class="handoff-status" role="status" aria-live="polite"></p>
+
+            <div id="handoff-list" class="handoff-list"></div>
+            <p id="handoff-empty" class="library-empty">아직 가져온 핸드오프 번들이 없습니다.</p>
+            <div id="handoff-detail" class="handoff-detail" hidden></div>
+          </section>
+
           <section id="library-section" class="library-section">
             <header class="section-heading section-heading--inline">
               <div>
@@ -481,6 +505,7 @@ export function createApp(options: AppOptions = {}) {
         <script src="/static/vfx-intro.js?v=20260829-studio-4"></script>
         <script src="/static/app.js?v=20260829-studio-4"></script>
         <script src="/static/studio.js?v=20260829-studio-4"></script>
+        <script src="/static/handoff.js?v=20260829-studio-4"></script>
       </div>
     )
   })
