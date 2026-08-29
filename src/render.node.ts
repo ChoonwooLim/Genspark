@@ -21,7 +21,6 @@ import { createPool, isSafeId, resolveDatabaseUrl, resolveUploadDir } from './st
 
 const CHROMIUM = process.env.CHROMIUM_EXECUTABLE_PATH || '/usr/bin/chromium'
 const MAX_FRAMES = 900
-const FRAME_TIMEOUT_MS = 20_000
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS renders (
@@ -101,17 +100,28 @@ function run(command: string, args: string[]) {
   })
 }
 
-/** Capture one frame per tick of virtual time.
+/** Capture one frame per animation timestamp.
  *
- *  Screenshots on a wall clock drift under load and duplicate or skip frames.
- *  CDP virtual time advances the page by an exact budget and pauses again, so
- *  frame N is always at N/fps seconds no matter how long the capture took. */
+ *  CDP virtual time was the obvious tool and it does not work here: it drives
+ *  the main-thread clock, but Chrome promotes transform/opacity animations —
+ *  which is all of these — to the compositor, where they keep running on the
+ *  real clock. Every frame came back identical, showing the final hold state,
+ *  because the animation had finished long before the capture loop did.
+ *
+ *  The Web Animations API reaches them wherever they run: pause every
+ *  animation, then set currentTime per frame. Animations are re-queried each
+ *  frame so any started later are picked up too. */
 async function captureFrames(job: Job): Promise<Buffer[]> {
   const { chromium } = await import('playwright-core')
   const browser = await chromium.launch({
     executablePath: CHROMIUM,
     // Required in a container: there is no user namespace to sandbox into.
-    args: ['--no-sandbox', '--disable-dev-shm-usage', '--hide-scrollbars', '--force-device-scale-factor=1'],
+    args: [
+      '--no-sandbox',
+      '--disable-dev-shm-usage',
+      '--hide-scrollbars',
+      '--force-device-scale-factor=1',
+    ],
   })
 
   try {
@@ -119,34 +129,27 @@ async function captureFrames(job: Job): Promise<Buffer[]> {
       viewport: { width: job.width, height: job.height },
       deviceScaleFactor: 1,
     })
-    const cdp = await page.context().newCDPSession(page)
 
     await page.goto(job.url, { waitUntil: 'load', timeout: 30_000 })
-    // Fonts and the logo must be in before time starts, or frame 0 renders bare.
+    // Fonts and the logo must be in before the first frame, or frame 0 is bare.
     await page.evaluate(() => (document as any).fonts?.ready).catch(() => {})
-    await page.waitForTimeout(250)
-
-    await cdp.send('Emulation.setVirtualTimePolicy', { policy: 'pause' })
+    await page.waitForTimeout(300)
 
     const frameCount = Math.min(Math.round(job.duration * job.fps), MAX_FRAMES)
-    const budget = 1000 / job.fps
+    const step = 1000 / job.fps
     const frames: Buffer[] = []
 
     for (let i = 0; i < frameCount; i += 1) {
-      if (i > 0) {
-        const expired = new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(() => reject(new Error('virtual time stalled')), FRAME_TIMEOUT_MS)
-          cdp.once('Emulation.virtualTimeBudgetExpired', () => {
-            clearTimeout(timer)
-            resolve()
-          })
-        })
-        await cdp.send('Emulation.setVirtualTimePolicy', {
-          policy: 'pauseIfNetworkFetchesPending',
-          budget,
-        })
-        await expired
-      }
+      await page.evaluate((timeMs) => {
+        for (const animation of document.getAnimations()) {
+          try {
+            animation.pause()
+            animation.currentTime = timeMs
+          } catch {
+            /* an animation may be finished or unseekable — leave it be */
+          }
+        }
+      }, i * step)
       frames.push(await page.screenshot({ type: 'png' }))
     }
     return frames
