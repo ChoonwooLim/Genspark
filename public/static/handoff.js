@@ -74,6 +74,9 @@
         say('핸드오프 저장소가 아직 활성화되지 않았습니다 (PostgreSQL 미설정).', 'error');
         return;
       }
+      // This page never loads the project list, so it resolves the shared
+      // storage chip from its own response instead of leaving it at "확인 중".
+      window.PlazionCore?.setStorageMode(body.storage === 'server' ? 'server' : 'local');
       bundles = body.handoffs || [];
       render();
     } catch {

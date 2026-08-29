@@ -8,11 +8,13 @@
     "deploy": "npm run build && wrangler pages deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
     "build:node": "node scripts/build-node.mjs",
+    "vendor": "node scripts/vendor.mjs",
     "start": "npm run build:node && node dist-node/server.js"
   },
   "dependencies": {
     "fflate": "^0.8.3",
     "hono": "^4.13.5",
+    "jszip": "^3.10.1",
     "pg": "^8.23.0"
   },
   "devDependencies": {

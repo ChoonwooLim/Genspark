@@ -233,6 +233,14 @@ img { max-width: 100%; display: block; }
   color: var(--muted);
 }
 
+.display,
+.h-section,
+.h-card {
+  /* Korean has no spaces to break on by default, so a long headline splits
+     mid-word. keep-all breaks at word boundaries instead. */
+  word-break: keep-all;
+}
+
 .display {
   font-family: var(--display);
   font-size: clamp(38px, 6.4vw, 84px);

@@ -33,7 +33,7 @@ const ROUTES = [
     path: '/preview',
     title: '미리보기',
     description: '3초 루프 미리보기와 투명 PNG 시퀀스 내보내기',
-    scripts: ['vfx-intro.js', 'core.js', 'preview.js'],
+    scripts: ['vendor/jszip.min.js', 'vfx-intro.js', 'core.js', 'preview.js'],
     Page: PreviewPage,
   },
   {
@@ -47,7 +47,7 @@ const ROUTES = [
     path: '/handoff',
     title: '핸드오프 가져오기',
     description: 'Genspark 핸드오프 프로젝트를 통째로 가져옵니다',
-    scripts: ['core.js', 'handoff.js'],
+    scripts: ['vendor/jszip.min.js', 'core.js', 'handoff.js'],
     Page: HandoffPage,
   },
   {
