@@ -174,6 +174,47 @@ export function StudioPage() {
               </button>
             </div>
 
+            {/* Inline, not a modal: the essentials a project starts from —
+                name, preset, aspect, and the render defaults the preview page
+                will prefill. Everything else keeps its current value. */}
+            <div id="new-project-panel" class="card card--outline stack stack-sm" hidden>
+              <div class="field">
+                <label for="np-name">프로젝트 이름</label>
+                <input id="np-name" class="input" type="text" placeholder="예: GreenB 오프닝" />
+              </div>
+              <div class="pair">
+                <div class="field">
+                  <label for="np-preset">프리셋</label>
+                  <select id="np-preset" class="select"></select>
+                </div>
+                <div class="field">
+                  <label for="np-aspect">화면비</label>
+                  <select id="np-aspect" class="select">
+                    <option value="landscape">16:9 · 1920×1080</option>
+                    <option value="portrait">9:16 · 1080×1920</option>
+                  </select>
+                </div>
+              </div>
+              <div class="pair">
+                <div class="field">
+                  <label for="np-fps">렌더 FPS</label>
+                  <select id="np-fps" class="select">
+                    <option value="24">24</option>
+                    <option value="30" selected>30</option>
+                    <option value="60">60</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="np-duration">렌더 길이(초)</label>
+                  <input id="np-duration" class="input" type="number" min="0.5" max="30" step="0.5" value="3" />
+                </div>
+              </div>
+              <div class="cluster">
+                <button id="np-create" type="button" class="btn btn--sm">이 설정으로 시작</button>
+                <button id="np-cancel" type="button" class="btn btn--quiet">취소</button>
+              </div>
+            </div>
+
             <div class="segmented segmented--light" role="tablist" aria-label="로고 소스 방식">
               <button id="source-mode-upload" type="button" class="is-active" role="tab" aria-selected="true">
                 업로드

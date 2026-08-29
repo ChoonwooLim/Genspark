@@ -52,6 +52,14 @@
     anim: el('studio-anim'),
     proto: el('studio-proto'),
     animNote: el('studio-anim-note'),
+    npPanel: el('new-project-panel'),
+    npName: el('np-name'),
+    npPreset: el('np-preset'),
+    npAspect: el('np-aspect'),
+    npFps: el('np-fps'),
+    npDuration: el('np-duration'),
+    npCreate: el('np-create'),
+    npCancel: el('np-cancel'),
   };
   if (!core || !els.save) return;
 
@@ -66,6 +74,10 @@
   let animSource = { kind: 'engine' };
   let animConcepts = [];
   let protoFit = null;
+
+  // Prefills the preview page's render panel; set at project creation and
+  // saved with the project so a reopened project renders the same way.
+  let renderDefaults = { fps: 30, duration: 3 };
 
   const say = (message, type = 'info') => {
     els.status.textContent = message;
@@ -267,6 +279,7 @@
       name: name || null,
       projectId,
       settings: getSettings(),
+      renderDefaults,
       animation:
         animSource.kind === 'proto'
           ? {
@@ -365,6 +378,7 @@
         name,
         settings: {
           ...settings,
+          renderDefaults,
           animation:
             animSource.kind === 'proto'
               ? {
@@ -553,20 +567,59 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
 
-  els.newProject.addEventListener('click', () => {
+  function startNewProject({ name, preset, aspect, fps, duration }) {
     projectId = null;
     logoBlob = null;
     logoUrl = '/static/plazion_logo.png';
     sourceConfirmed = false;
-    els.projectName.value = '';
+    els.projectName.value = name;
     els.sourceReady.textContent = '';
-    applySettings(core.DEFAULT_PRESET);
+    applySettings({ ...(preset || core.DEFAULT_PRESET), aspect });
+    renderPresets((preset || core.DEFAULT_PRESET).id);
+    renderDefaults = { fps, duration };
     core.clearWorkingLogo();
     animSource = { kind: 'engine' };
     animConcepts = [];
     applyAnimView();
     if (intro) intro.setLogoSource(logoUrl);
-    say('새 프로젝트를 시작했습니다.');
+    say(`“${name}” 프로젝트를 시작했습니다. 1단계에서 로고를 확정해 주세요.`);
+  }
+
+  els.newProject.addEventListener('click', () => {
+    // Populate the preset choices at open time — they may have loaded since.
+    els.npPreset.replaceChildren(
+      ...core.state.presets.map((preset) => {
+        const option = document.createElement('option');
+        option.value = preset.id;
+        option.textContent = preset.name;
+        return option;
+      })
+    );
+    els.npPanel.hidden = !els.npPanel.hidden;
+    if (!els.npPanel.hidden) els.npName.focus();
+  });
+
+  els.npCancel.addEventListener('click', () => {
+    els.npPanel.hidden = true;
+  });
+
+  els.npCreate.addEventListener('click', () => {
+    const name = els.npName.value.trim();
+    if (!name) {
+      say('프로젝트 이름을 입력해 주세요.', 'error');
+      els.npName.focus();
+      return;
+    }
+    const preset = core.state.presets.find((p) => p.id === els.npPreset.value) || core.DEFAULT_PRESET;
+    startNewProject({
+      name,
+      preset,
+      aspect: els.npAspect.value === 'portrait' ? 'portrait' : 'landscape',
+      fps: Number(els.npFps.value) || 30,
+      duration: Math.min(Math.max(Number(els.npDuration.value) || 3, 0.5), 30),
+    });
+    els.npPanel.hidden = true;
+    els.npName.value = '';
   });
 
   /** Opened from the handoff page: /studio?handoff=<id>. Applies only what the
@@ -637,6 +690,7 @@
     projectId = working.meta?.projectId || null;
     if (working.meta?.name) els.projectName.value = working.meta.name;
     if (working.meta?.settings) applySettings(working.meta.settings);
+    if (working.meta?.renderDefaults) renderDefaults = working.meta.renderDefaults;
     await restoreAnimSource(working.meta?.animation);
     await setLogo(working.blob, working.meta?.filename || 'working-logo.png', working.meta?.name);
     say('작업 중이던 프로젝트를 이어서 표시합니다.');
@@ -645,10 +699,27 @@
   Promise.all([core.loadProjects(), core.loadPresets()])
     .then(() => {
       renderPresets(core.DEFAULT_PRESET.id);
-      return restoreFromHandoff().then((handled) => {
+      return restoreFromHandoff().then(async (handled) => {
         if (handled) return null;
         const wanted = core.projectIdFromQuery();
-        return wanted ? restoreFromQuery() : restoreWorkingState();
+        if (wanted) return restoreFromQuery();
+        await restoreWorkingState();
+        // A preset chosen on the library page: apply its dials to whatever
+        // logo is current, on the engine — that is what a preset describes.
+        const presetId = new URLSearchParams(window.location.search).get('preset');
+        if (presetId) {
+          const preset = core.state.presets.find((p) => p.id === presetId);
+          if (preset) {
+            applySettings(preset);
+            renderPresets(preset.id);
+            animSource = { kind: 'engine' };
+            applyAnimView();
+            await core.setWorkingSettings(getSettings());
+            await core.updateWorkingMeta({ animation: { kind: 'engine' } });
+            say(`“${preset.name}” 프리셋을 적용했습니다.`);
+          }
+        }
+        return null;
       });
     })
     .catch(() => core.setStorageMode('local'));

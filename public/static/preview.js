@@ -731,6 +731,16 @@
       name: name || null,
       projectId: window.PlazionCore?.projectIdFromQuery() || null,
     };
+    if (settings?.renderDefaults) {
+      // Chosen at project creation; the render panel opens on those values
+      // instead of whatever the last visitor left in the controls.
+      if ([24, 30, 60].includes(Number(settings.renderDefaults.fps))) {
+        renderFps.value = String(settings.renderDefaults.fps);
+      }
+      if (Number(settings.renderDefaults.duration) > 0) {
+        renderDuration.value = String(settings.renderDefaults.duration);
+      }
+    }
     if (name) exportStatusNote.textContent = `현재 로고: ${name} · 30fps · 3초 · 투명 PNG 90장`;
   }
 
@@ -778,8 +788,32 @@
     }
 
     const working = await core.getWorkingLogo();
-    if (working?.blob) await applyLogo(working.blob, working.meta?.settings, working.meta?.name);
+    if (working?.blob) {
+      await applyLogo(
+        working.blob,
+        { ...(working.meta?.settings || {}), renderDefaults: working.meta?.renderDefaults },
+        working.meta?.name
+      );
+    }
     selectRecordedAnimation(working?.meta?.animation);
+
+    // A preset opened from the library: the engine with that preset's dials.
+    const presetId = new URLSearchParams(window.location.search).get('preset');
+    if (presetId && core.loadPresets) {
+      await core.loadPresets().catch(() => {});
+      const preset = core.state.presets.find((p) => p.id === presetId);
+      if (preset) {
+        intro.setVisualSettings({ glow: (preset.glow ?? 100) / 100, energy: (preset.energy ?? 100) / 100 });
+        if (preset.aspect && preset.aspect !== intro.aspect) {
+          const button = Array.from(aspectBtns).find((b) => b.getAttribute('data-aspect') === preset.aspect);
+          if (button) button.click();
+        }
+        sourceSelect.value = '0';
+        applySource(sources[0]);
+        engineSettings = { ...engineSettings, glow: preset.glow ?? 100, energy: preset.energy ?? 100 };
+        sourceNote.textContent = `프리셋 “${preset.name}” 적용 중 · 내장 엔진`;
+      }
+    }
   })();
 
   updateMuteUI();

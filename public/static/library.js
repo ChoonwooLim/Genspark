@@ -44,7 +44,11 @@
         <h3 class="h-card">${core.escapeHtml(preset.name)}</h3>
         <p class="caption">글로우 ${Math.round(preset.glow ?? 100)}% · 에너지 ${Math.round(preset.energy ?? 100)}% · ${preset.aspect === 'portrait' ? '9:16' : '16:9'}</p>
       </div>
-      ${preset.isDefault ? '<span class="chip chip--neutral">기본</span>' : '<button type="button" class="btn btn--quiet" data-action="delete-preset">삭제</button>'}`;
+      <span class="cluster">
+        <a class="btn btn--ghost btn--sm" href="/studio?preset=${encodeURIComponent(preset.id)}">작업실에 적용</a>
+        <a class="btn btn--quiet" href="/preview?preset=${encodeURIComponent(preset.id)}">미리보기</a>
+        ${preset.isDefault ? '<span class="chip chip--neutral">기본</span>' : '<button type="button" class="btn btn--quiet" data-action="delete-preset">삭제</button>'}
+      </span>`;
     return el;
   }
 
