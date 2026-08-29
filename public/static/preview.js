@@ -333,8 +333,12 @@
       throw new Error(`파일이 서버 상한(${formatBytes(serverStorage.maxBytes)})을 넘었습니다 — ${formatBytes(zipBlob.size)}`);
     }
 
+    // Every upload used to be called plazion_transparent_<size>_30fps.zip, so
+    // an archive of them was impossible to tell apart. Lead with what it is of.
+    const subject = (engineSettings.name || 'PLAZION').replace(/[^\w가-힣.\- ]+/g, '').trim() || 'PLAZION';
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '').replace(/-/g, '');
     const saved = await uploadZip(zipBlob, {
-      filename: `plazion_transparent_${canvas.width}x${canvas.height}_30fps.zip`,
+      filename: `${subject}_${canvas.width}x${canvas.height}_30fps_${stamp}.zip`,
       aspect: intro.aspect,
       width: canvas.width,
       height: canvas.height,

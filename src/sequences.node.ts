@@ -292,6 +292,24 @@ export async function createSequencesApi() {
     })
   })
 
+  api.delete('/:id', async (c) => {
+    const blocked = requireDb(c)
+    if (blocked) return blocked
+    // Deleting frees disk on a box shared with every other project, so it is
+    // gated the same way the studio's other writes are.
+    const adminToken = process.env.STUDIO_ADMIN_TOKEN
+    if (adminToken && c.req.header('X-Studio-Token') !== adminToken) {
+      return c.json({ error: '작업실 접근 코드가 필요합니다.', code: 'STUDIO_AUTH_REQUIRED' }, 401)
+    }
+
+    const { rows } = await pool
+      .query('DELETE FROM png_sequences WHERE id = $1 RETURNING storage_path', [c.req.param('id')])
+      .catch(() => ({ rows: [] }))
+    if (!rows[0]) return c.json({ error: 'not_found' }, 404)
+    await fs.rm(path.resolve(uploadDir, rows[0].storage_path), { force: true }).catch(() => {})
+    return c.json({ deleted: c.req.param('id') })
+  })
+
   api.get('/:id/download', async (c) => {
     const blocked = requireDb(c)
     if (blocked) return blocked
