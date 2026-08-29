@@ -142,6 +142,10 @@ class PlazionIntro {
     this.soundOn = false;
     this.logo = null;
     this.voxelData = null;
+    this.ready = new Promise((resolve, reject) => {
+      this._resolveReady = resolve;
+      this._rejectReady = reject;
+    });
     this.startTime = null;
     this.rafId = null;
     this.impactPlayed = false;
@@ -156,8 +160,10 @@ class PlazionIntro {
       this.logo = img;
       this._buildVoxels();
       this._applyAspect();
+      this._resolveReady();
       this._start();
     };
+    img.onerror = () => this._rejectReady(new Error('로고 이미지를 불러오지 못했습니다.'));
     img.src = this.logoSrc;
   }
 
@@ -232,6 +238,45 @@ class PlazionIntro {
     this.soundOn = on;
   }
 
+  async exportPngSequence({ fps = 30, onProgress = () => {} } = {}) {
+    await this.ready;
+    const safeFps = Math.max(1, Math.min(60, Math.round(fps)));
+    const frameCount = Math.round(DURATION * safeFps);
+    const wasRunning = Boolean(this.rafId);
+    if (this.rafId) cancelAnimationFrame(this.rafId);
+    this.rafId = null;
+
+    const previewCanvas = this.canvas;
+    const previewCtx = this.ctx;
+    const exportCanvas = document.createElement('canvas');
+    const cfg = ASPECTS[this.aspect];
+    exportCanvas.width = cfg.w;
+    exportCanvas.height = cfg.h;
+    this.canvas = exportCanvas;
+    this.ctx = exportCanvas.getContext('2d');
+
+    const frames = [];
+    try {
+      for (let frame = 0; frame < frameCount; frame++) {
+        this._draw(frame / safeFps, { transparent: true });
+        const blob = await new Promise((resolve, reject) => {
+          exportCanvas.toBlob(
+            (result) => result ? resolve(result) : reject(new Error('PNG 프레임 변환에 실패했습니다.')),
+            'image/png'
+          );
+        });
+        frames.push(blob);
+        onProgress(frame + 1, frameCount);
+        if (frame % 3 === 2) await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      return { frames, fps: safeFps, duration: DURATION, aspect: this.aspect };
+    } finally {
+      this.canvas = previewCanvas;
+      this.ctx = previewCtx;
+      if (wasRunning) this.restart();
+    }
+  }
+
   _loop() {
     const now = performance.now();
     let t = (now - this.startTime) / 1000;
@@ -260,19 +305,23 @@ class PlazionIntro {
     if (this.rafId) cancelAnimationFrame(this.rafId);
   }
 
-  _draw(t) {
+  _draw(t, options = {}) {
+    const transparent = Boolean(options.transparent);
     const cfg = ASPECTS[this.aspect];
     const w = cfg.w, h = cfg.h;
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    ctx.fillStyle = '#020009';
-    ctx.fillRect(0, 0, w, h);
-    const vg = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.6);
-    vg.addColorStop(0, 'rgba(40, 15, 80, 0.35)');
-    vg.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, w, h);
+    ctx.clearRect(0, 0, w, h);
+    if (!transparent) {
+      ctx.fillStyle = '#020009';
+      ctx.fillRect(0, 0, w, h);
+      const vg = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.6);
+      vg.addColorStop(0, 'rgba(40, 15, 80, 0.35)');
+      vg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, w, h);
+    }
 
     ctx.save();
     ctx.translate(w / 2, h / 2);
@@ -356,7 +405,7 @@ class PlazionIntro {
       ctx.restore();
     }
 
-    if (impactFlash > 0.01) {
+    if (!transparent && impactFlash > 0.01) {
       ctx.restore();
       ctx.fillStyle = `rgba(230, 210, 255, ${impactFlash * 0.55})`;
       ctx.fillRect(0, 0, w, h);
@@ -366,21 +415,23 @@ class PlazionIntro {
 
     ctx.restore();
 
-    // Hologram scanlines
-    ctx.save();
-    const scanIntensity = 0.06 + idleT * 0.08;
-    for (let y = 0; y < h; y += 3) {
-      ctx.fillStyle = `rgba(180, 140, 255, ${scanIntensity * 0.35})`;
-      ctx.fillRect(0, y, w, 1);
+    // Hologram scanlines are preview-only so exported pixels outside the logo stay transparent.
+    if (!transparent) {
+      ctx.save();
+      const scanIntensity = 0.06 + idleT * 0.08;
+      for (let y = 0; y < h; y += 3) {
+        ctx.fillStyle = `rgba(180, 140, 255, ${scanIntensity * 0.35})`;
+        ctx.fillRect(0, y, w, 1);
+      }
+      const sy = (t * 320) % (h + 100) - 50;
+      const grd = ctx.createLinearGradient(0, sy - 40, 0, sy + 40);
+      grd.addColorStop(0, 'rgba(180, 130, 255, 0)');
+      grd.addColorStop(0.5, `rgba(210, 170, 255, ${0.12 + idleT * 0.1})`);
+      grd.addColorStop(1, 'rgba(180, 130, 255, 0)');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, sy - 40, w, 80);
+      ctx.restore();
     }
-    const sy = (t * 320) % (h + 100) - 50;
-    const grd = ctx.createLinearGradient(0, sy - 40, 0, sy + 40);
-    grd.addColorStop(0, 'rgba(180, 130, 255, 0)');
-    grd.addColorStop(0.5, `rgba(210, 170, 255, ${0.12 + idleT * 0.1})`);
-    grd.addColorStop(1, 'rgba(180, 130, 255, 0)');
-    ctx.fillStyle = grd;
-    ctx.fillRect(0, sy - 40, w, 80);
-    ctx.restore();
 
     // expose progress for UI (loop badge etc.)
     if (this._onFrame) this._onFrame(t / DURATION);

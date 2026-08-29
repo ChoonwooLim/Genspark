@@ -101,6 +101,20 @@ export function createApp() {
                 <a id="download-logo" href="/static/plazion_logo.png" download class="ctrl-btn">
                   <i class="fa-solid fa-image"></i> 로고 원본
                 </a>
+                <button id="download-sequence" type="button" class="ctrl-btn ctrl-btn--primary">
+                  <i class="fa-solid fa-file-zipper"></i>
+                  <span id="sequence-label">투명 PNG 시퀀스</span>
+                </button>
+              </div>
+              <div id="export-status" class="export-status" role="status" aria-live="polite" hidden>
+                <div class="export-status__row">
+                  <span id="export-status-text">프레임 준비 중</span>
+                  <span id="export-progress-value">0%</span>
+                </div>
+                <div class="export-progress" aria-hidden="true">
+                  <span id="export-progress-bar"></span>
+                </div>
+                <p>현재 화면비 · 30fps · 3초 · PNG 90장을 ZIP으로 저장합니다.</p>
               </div>
             </div>
           </section>
@@ -214,6 +228,7 @@ export function createApp() {
           <p>PLAZION VFX Intro · Design handoff: Voxel Materialize (Variant 03) · 3s loop</p>
         </footer>
 
+        <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
         <script src="/static/vfx-intro.js"></script>
         <script src="/static/app.js"></script>
       </div>
