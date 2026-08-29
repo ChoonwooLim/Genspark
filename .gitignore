@@ -41,3 +41,6 @@ IMG/
 
 # Visual Studio IDE state
 .vs/
+
+# local Genspark handoff drops (imported through the site, not the repo)
+HandOff/
