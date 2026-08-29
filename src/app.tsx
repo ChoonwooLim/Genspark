@@ -5,8 +5,13 @@
 import { Hono } from 'hono'
 import { etag } from 'hono/etag'
 import { renderer } from './renderer'
+import { generateLogoWithGenspark, type GensparkConfig } from './genspark-image'
 
-export function createApp() {
+type AppOptions = {
+  genspark?: GensparkConfig
+}
+
+export function createApp(options: AppOptions = {}) {
   const app = new Hono()
 
   // Cache-busting: every response revalidates with the server (304 when
@@ -15,6 +20,10 @@ export function createApp() {
   // the name changes when the bytes change, so they are safe to cache forever.
   app.use('*', async (c, next) => {
     await next()
+    if (c.req.path.startsWith('/api/')) {
+      c.header('Cache-Control', 'no-store')
+      return
+    }
     const hashed =
       c.res.status < 400 && /\.[0-9a-f]{8,}\.[a-z0-9]+$/i.test(c.req.path)
     c.header(
@@ -30,6 +39,14 @@ export function createApp() {
 
   app.use(renderer)
 
+  app.post('/api/ai/generate-logo', (c) => generateLogoWithGenspark(c, options.genspark || {}))
+
+  // Storage API discovery stubs. The Orbitron persistence service can replace
+  // these routes with PostgreSQL/filesystem-backed implementations while the
+  // client safely falls back to IndexedDB during parallel development.
+  app.get('/api/logos', (c) => c.json({ logos: [], storage: 'unconfigured' }))
+  app.get('/api/presets', (c) => c.json({ presets: [], storage: 'unconfigured' }))
+
   app.get('/', (c) => {
     return c.render(
       <div id="app-root">
@@ -42,9 +59,10 @@ export function createApp() {
               <span class="brand-sub">VFX INTRO</span>
             </div>
             <nav class="header-nav">
+              <a href="#workspace-section">로고 작업실</a>
               <a href="#stage-section">미리보기</a>
+              <a href="#library-section">라이브러리</a>
               <a href="#spec-section">스펙</a>
-              <a href="#timeline-section">타임라인</a>
             </nav>
           </div>
         </header>
@@ -123,9 +141,148 @@ export function createApp() {
             </div>
           </section>
 
-          {/* ===== Server Library (Node container only — hidden when the
+          {/* ===== Logo Studio ===== */}
+          <section id="workspace-section" class="workspace-section">
+            <header class="section-heading">
+              <div>
+                <p class="eyebrow">ONE-STOP LOGO WORKFLOW</p>
+                <h2>로고 작업실</h2>
+                <p>로고를 업로드하거나 Genspark AI로 만들고, 애니메이션을 조정한 뒤 프로젝트와 프리셋으로 저장하세요.</p>
+              </div>
+              <div class="section-heading__actions">
+                <span id="storage-indicator" class="storage-indicator"><i class="fa-solid fa-circle"></i> 저장소 확인 중</span>
+                <button id="new-project-btn" class="ctrl-btn" type="button"><i class="fa-solid fa-plus"></i> 새 프로젝트</button>
+              </div>
+            </header>
+
+            <div class="workspace-grid">
+              <article class="workspace-card source-card">
+                <div class="card-heading">
+                  <span class="step-index">01</span>
+                  <div><h3>로고 소스</h3><p>파일 업로드 또는 AI 생성</p></div>
+                </div>
+
+                <label id="logo-dropzone" class="logo-dropzone" for="logo-upload">
+                  <input id="logo-upload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
+                  <i class="fa-solid fa-cloud-arrow-up"></i>
+                  <strong>로고 파일을 놓거나 선택</strong>
+                  <span>PNG · SVG · WEBP · JPG / 투명 PNG 권장</span>
+                </label>
+
+                <div class="source-divider"><span>또는 Genspark AI</span></div>
+                <div class="form-stack">
+                  <label class="field-label" for="ai-brand-name">브랜드 이름</label>
+                  <input id="ai-brand-name" class="text-field" type="text" placeholder="예: PLAZION" maxlength="80" />
+                  <label class="field-label" for="ai-logo-prompt">로고 설명</label>
+                  <textarea id="ai-logo-prompt" class="text-field" rows="4" placeholder="브랜드 성격, 심볼, 컬러와 분위기를 설명하세요."></textarea>
+                  <div class="form-row">
+                    <label><span class="field-label">스타일</span>
+                      <select id="ai-logo-style" class="text-field">
+                        <option value="futuristic metallic emblem">퓨처 메탈릭</option>
+                        <option value="minimal geometric monogram">미니멀 모노그램</option>
+                        <option value="premium luxury wordmark">프리미엄 워드마크</option>
+                        <option value="bold esports mascot symbol">이스포츠 심볼</option>
+                        <option value="friendly modern tech mark">모던 테크</option>
+                      </select>
+                    </label>
+                    <label><span class="field-label">AI 모델</span>
+                      <select id="ai-logo-model" class="text-field">
+                        <option value="nano-banana-2-flash-lite">빠른 생성</option>
+                        <option value="nano-banana-2">고품질</option>
+                        <option value="gpt-image-2">정교한 텍스트</option>
+                        <option value="qwen-image-3">한·영 타이포</option>
+                      </select>
+                    </label>
+                  </div>
+                  <button id="generate-logo-btn" class="action-btn action-btn--ai" type="button">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i><span>Genspark AI로 로고 생성</span>
+                  </button>
+                  <p class="field-help">AI 생성은 크레딧을 사용하며 Orbitron의 <code>GSK_API_KEY</code>로 안전하게 호출됩니다.</p>
+                </div>
+              </article>
+
+              <article class="workspace-card settings-card">
+                <div class="card-heading">
+                  <span class="step-index">02</span>
+                  <div><h3>애니메이션 설정</h3><p>프리셋과 강도 조절</p></div>
+                </div>
+                <div class="form-stack">
+                  <label class="field-label" for="project-name">프로젝트 이름</label>
+                  <input id="project-name" class="text-field" type="text" value="PLAZION VFX Intro" maxlength="100" />
+
+                  <label class="field-label" for="preset-select">프리셋</label>
+                  <div class="inline-field">
+                    <select id="preset-select" class="text-field">
+                      <option value="voxel-default">Voxel Materialize · 기본</option>
+                    </select>
+                    <button id="delete-preset-btn" class="icon-btn" type="button" title="선택 프리셋 삭제" aria-label="선택 프리셋 삭제"><i class="fa-solid fa-trash"></i></button>
+                  </div>
+
+                  <div class="setting-block">
+                    <div class="range-heading"><label for="glow-range">글로우</label><output id="glow-value">100%</output></div>
+                    <input id="glow-range" type="range" min="0" max="200" value="100" />
+                  </div>
+                  <div class="setting-block">
+                    <div class="range-heading"><label for="energy-range">모션 에너지</label><output id="energy-value">100%</output></div>
+                    <input id="energy-range" type="range" min="40" max="180" value="100" />
+                  </div>
+
+                  <fieldset class="choice-group">
+                    <legend>출력 화면비</legend>
+                    <label><input type="radio" name="studio-aspect" value="landscape" checked /> 16:9 · 1920×1080</label>
+                    <label><input type="radio" name="studio-aspect" value="portrait" /> 9:16 · 1080×1920</label>
+                  </fieldset>
+
+                  <label class="toggle-row">
+                    <input id="auto-preset-toggle" type="checkbox" checked />
+                    <span><strong>저장 시 프리셋 자동 등록</strong><small>현재 설정을 다음 프로젝트에서도 바로 사용합니다.</small></span>
+                  </label>
+
+                  <button id="save-project-btn" class="action-btn action-btn--save" type="button">
+                    <i class="fa-solid fa-floppy-disk"></i><span>프로젝트 저장 + 프리셋 등록</span>
+                  </button>
+                  <p id="studio-status" class="studio-status" role="status" aria-live="polite"></p>
+                </div>
+              </article>
+
+              <aside class="workspace-card workflow-card">
+                <div class="card-heading">
+                  <span class="step-index">03</span>
+                  <div><h3>빠른 작업</h3><p>현재 로고 출력</p></div>
+                </div>
+                <div class="quick-actions">
+                  <button id="studio-preview-btn" class="quick-action" type="button"><i class="fa-solid fa-play"></i><span><strong>미리보기 재생</strong><small>상단 스테이지에서 확인</small></span></button>
+                  <button id="studio-download-btn" class="quick-action" type="button"><i class="fa-solid fa-layer-group"></i><span><strong>PNG 시퀀스</strong><small>투명 프레임 90장 저장</small></span></button>
+                  <button id="download-current-logo-btn" class="quick-action" type="button"><i class="fa-solid fa-download"></i><span><strong>로고 원본</strong><small>현재 소스 이미지 다운로드</small></span></button>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          {/* ===== Project Library ===== */}
+          <section id="library-section" class="library-section">
+            <header class="section-heading section-heading--inline">
+              <div>
+                <p class="eyebrow">SAVED PROJECTS</p>
+                <h2>로고 라이브러리</h2>
+                <p>저장한 로고를 다시 불러와 재생하고 원본 또는 시퀀스를 다운로드할 수 있습니다.</p>
+              </div>
+              <div class="library-tools">
+                <label class="search-field"><i class="fa-solid fa-magnifying-glass"></i><input id="library-search" type="search" placeholder="프로젝트 검색" /></label>
+                <button id="refresh-library-btn" class="ctrl-btn" type="button"><i class="fa-solid fa-arrows-rotate"></i> 새로고침</button>
+              </div>
+            </header>
+            <div id="library-grid" class="library-grid" aria-live="polite"></div>
+            <div id="library-empty" class="library-empty" hidden>
+              <i class="fa-regular fa-folder-open"></i>
+              <h3>아직 저장된 로고가 없습니다</h3>
+              <p>로고 작업실에서 첫 프로젝트를 저장해 보세요.</p>
+            </div>
+          </section>
+
+          {/* ===== Server Sequence Library (Node container only — hidden when the
                    /api/sequences backend is absent or has no database) ===== */}
-          <section id="library-section" class="library-section" hidden>
+          <section id="sequence-library-section" class="library-section" hidden>
             <h2 class="section-title">
               <i class="fa-solid fa-server"></i> 서버 보관함
             </h2>
@@ -249,6 +406,7 @@ export function createApp() {
         <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
         <script src="/static/vfx-intro.js"></script>
         <script src="/static/app.js"></script>
+        <script src="/static/studio.js"></script>
       </div>
     )
   })

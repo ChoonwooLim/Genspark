@@ -17,7 +17,7 @@
   const exportStatusNote = document.getElementById('export-status-note');
   const uploadSequenceBtn = document.getElementById('upload-sequence');
   const uploadLabel = document.getElementById('upload-label');
-  const librarySection = document.getElementById('library-section');
+  const librarySection = document.getElementById('sequence-library-section');
   const libraryList = document.getElementById('library-list');
   const libraryNote = document.getElementById('library-note');
 
@@ -35,6 +35,15 @@
       loopCountEl.textContent = String(loops);
     },
   });
+  window.PlazionApp = {
+    intro,
+    setAspect(aspect) {
+      const button = Array.from(aspectBtns).find((item) => item.getAttribute('data-aspect') === aspect);
+      if (button) button.click();
+    },
+    restart() { restartBtn.click(); },
+    exportSequence() { downloadSequenceBtn.click(); },
+  };
 
   function updateMuteUI() {
     const icon = muteToggle.querySelector('i');
@@ -102,6 +111,7 @@
       loops = 0;
       loopCountEl.textContent = '0';
       intro.setAspect(aspect);
+      window.dispatchEvent(new CustomEvent('plazion:aspect-change', { detail: { aspect } }));
     });
   });
 

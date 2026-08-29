@@ -7,7 +7,13 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { createApp } from './app'
 import { createSequencesApi } from './sequences.node'
 
-const app = createApp()
+const app = createApp({
+  genspark: {
+    apiKey: process.env.GSK_API_KEY,
+    baseUrl: process.env.GSK_API_BASE_URL,
+    accessToken: process.env.STUDIO_ADMIN_TOKEN,
+  },
+})
 app.use('/static/*', serveStatic({ root: './public' }))
 
 // Server-side PNG-sequence archive (Postgres metadata + archive on the

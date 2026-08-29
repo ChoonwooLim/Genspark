@@ -150,6 +150,7 @@ class PlazionIntro {
     this.rafId = null;
     this.impactPlayed = false;
     this.glitchPlayed = false;
+    this.visualSettings = { glow: 1, energy: 1 };
     this._loadLogo();
   }
 
@@ -172,6 +173,28 @@ class PlazionIntro {
     this.aspect = aspect;
     this._buildVoxels();
     this._applyAspect();
+    this.restart();
+  }
+
+  async setLogoSource(src) {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('선택한 로고 이미지를 불러오지 못했습니다.'));
+      img.src = src;
+    });
+    this.logoSrc = src;
+    this.logo = image;
+    this._buildVoxels();
+    this.restart();
+  }
+
+  setVisualSettings(settings = {}) {
+    this.visualSettings = {
+      glow: Math.max(0, Math.min(2, Number(settings.glow ?? this.visualSettings.glow))),
+      energy: Math.max(0.4, Math.min(1.8, Number(settings.energy ?? this.visualSettings.energy))),
+    };
     this.restart();
   }
 
@@ -364,7 +387,7 @@ class PlazionIntro {
         if (rand() < 0.7) {
           const by = (rand() - 0.5) * (h * 0.7);
           const bh = 8 + rand() * 40;
-          const shift = (rand() - 0.5) * 80 * (1 - gt);
+          const shift = (rand() - 0.5) * 80 * (1 - gt) * this.visualSettings.energy;
           ctx.save();
           ctx.beginPath();
           ctx.rect(-w / 2, by, w, bh);
@@ -389,7 +412,7 @@ class PlazionIntro {
         const maxRad = Math.hypot(w, h) * 0.6;
         const rad = rt * maxRad;
         ctx.strokeStyle = `rgba(190, 140, 255, ${(1 - rt) * 0.9})`;
-        ctx.lineWidth = 2 + (1 - rt) * 10;
+        ctx.lineWidth = 2 + (1 - rt) * 10 * this.visualSettings.energy;
         ctx.beginPath(); ctx.arc(0, 0, rad, 0, Math.PI * 2); ctx.stroke();
         ctx.strokeStyle = `rgba(255, 255, 255, ${(1 - rt) * 0.5})`;
         ctx.lineWidth = 1.5;
@@ -404,7 +427,7 @@ class PlazionIntro {
       ctx.save();
       ctx.globalAlpha = revealClean * flicker;
       ctx.shadowColor = 'rgba(170, 110, 255, 0.9)';
-      ctx.shadowBlur = 45;
+      ctx.shadowBlur = 45 * this.visualSettings.glow;
       ctx.drawImage(img, -vd.logoW / 2, -vd.logoH / 2, vd.logoW, vd.logoH);
       ctx.restore();
     }
