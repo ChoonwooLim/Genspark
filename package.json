@@ -11,6 +11,7 @@
     "start": "npm run build:node && node dist-node/server.js"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "hono": "^4.13.5",
     "pg": "^8.23.0"
   },

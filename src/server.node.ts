@@ -7,6 +7,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { createApp } from './app'
 import { createSequencesApi } from './sequences.node'
 import { createStudioLibraryApi } from './logos.node'
+import { createHandoffApi } from './handoff.node'
 
 const app = createApp({
   genspark: {
@@ -24,6 +25,11 @@ app.route('/api/sequences', await createSequencesApi())
 // Studio library (projects + presets) backed by the same Postgres and volume.
 // Replaces the Workers-only `unconfigured` stubs with real persistence.
 app.route('/api', await createStudioLibraryApi())
+
+// Genspark handoff bundles (project.zip): files on the volume, parsed spec and
+// manifest in Postgres. Registered after the library so its own /api/handoffs
+// prefix stays distinct.
+app.route('/api/handoffs', await createHandoffApi())
 
 const port = Number(process.env.PORT) || 3000
 
