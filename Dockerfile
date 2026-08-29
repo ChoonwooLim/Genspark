@@ -1,3 +1,4 @@
+# CUSTOM — Orbitron must not replace this with its generated template.
 # Orbitron builds this when the repo provides it, falling back to a generated
 # node:20-alpine image otherwise. It is provided here because rendering needs
 # two things Alpine's default image does not carry:
