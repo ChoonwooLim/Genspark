@@ -216,15 +216,21 @@
     const src = `/api/handoffs/${encodeURIComponent(bundle.id)}/files/${path.split('/').map(encodeURIComponent).join('/')}`;
     const holder = els.detail.querySelector('.handoff-frame');
     if (!holder) return;
-    holder.style.setProperty('--frame-w', `${w}`);
-    holder.style.setProperty('--frame-h', `${h}`);
     // No allow-same-origin: the bundle is untrusted, and the server also sends
     // `Content-Security-Policy: sandbox` on these responses.
     holder.innerHTML = `<iframe class="handoff-preview" style="width:${w}px;height:${h}px" src="${esc(src)}" sandbox="allow-scripts" title="${esc(previewLabel(path))}"></iframe>`;
 
+    // Fit both axes. Scaling by width alone leaves a 1080x1920 prototype
+    // 1.8x taller than its box, which is what cropped the portrait concepts.
     const fit = () => {
-      const width = holder.clientWidth;
-      if (width) holder.style.setProperty('--frame-scale', String(width / w));
+      const availW = holder.clientWidth;
+      if (!availW) return;
+      const availH = Math.min(window.innerHeight * 0.72, (availW * h) / w);
+      const k = Math.min(availW / w, availH / h);
+      holder.style.height = `${Math.round(h * k)}px`;
+      holder.style.setProperty('--frame-scale', String(k));
+      const frame = holder.querySelector('.handoff-preview');
+      if (frame) frame.style.left = `${Math.round((availW - w * k) / 2)}px`;
     };
     fit();
     previewFit?.disconnect();

@@ -645,13 +645,11 @@ img { max-width: 100%; display: block; }
    fit the column, so nothing is cropped whatever canvas the handoff was built
    at. --frame-w/--frame-h are set per prototype from JS. */
 .handoff-frame {
-  --frame-w: 1920;
-  --frame-h: 1080;
+  /* Height and the inner scale are set from JS: the prototype must fit both
+     axes, and a CSS max-height would silently win over aspect-ratio and crop
+     a portrait canvas back to a landscape box. */
   position: relative;
   width: 100%;
-  aspect-ratio: var(--frame-w) / var(--frame-h);
-  max-height: 70vh;
-  margin-inline: auto;
   overflow: hidden;
   border: 1px solid var(--hairline);
   border-radius: var(--r-sm);
