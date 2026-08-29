@@ -59,7 +59,23 @@ window.PlazionCore = (function () {
   function openDb() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
+      // A schema upgrade cannot run while another tab still holds the old
+      // version open. Without these two guards the promise simply never
+      // settles, and every await on it — including the one that applies a new
+      // logo — hangs with no error and no visible failure.
+      const settle = setTimeout(
+        () => reject(new Error('storage_timeout')),
+        4000
+      );
+      const done = (fn) => (value) => {
+        clearTimeout(settle);
+        fn(value);
+      };
       const request = indexedDB.open('plazion-studio', 2);
+      request.onblocked = () => {
+        console.warn('[storage] upgrade blocked by another open tab');
+        done(reject)(new Error('storage_blocked'));
+      };
       request.onupgradeneeded = () => {
         const db = request.result;
         if (!db.objectStoreNames.contains('logos')) db.createObjectStore('logos', { keyPath: 'id' });
@@ -67,8 +83,13 @@ window.PlazionCore = (function () {
         // v2: the working logo, so it survives navigation between pages.
         if (!db.objectStoreNames.contains('session')) db.createObjectStore('session', { keyPath: 'id' });
       };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      request.onsuccess = () => done(resolve)(request.result);
+      request.onerror = () => done(reject)(request.error);
+    });
+    // A rejected promise must not be cached, or one blocked moment would
+    // disable local storage for the rest of the session.
+    dbPromise.catch(() => {
+      dbPromise = null;
     });
     return dbPromise;
   }
@@ -235,8 +256,13 @@ window.PlazionCore = (function () {
       await idb('session', 'readwrite', (store) =>
         store.put({ id: 'current', blob, meta, savedAt: Date.now() })
       );
-    } catch {
-      /* private mode or blocked storage — the page still works, just not across navigations */
+      return true;
+    } catch (error) {
+      // Private mode, blocked storage, or an upgrade another tab is holding
+      // open. The page still works — the logo just will not follow you to the
+      // next page — so say that rather than failing silently.
+      console.warn('[storage] could not stash the working logo:', error?.message);
+      return false;
     }
   }
 

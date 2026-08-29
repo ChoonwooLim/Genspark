@@ -130,8 +130,18 @@
     if (intro) await intro.setLogoSource(logoUrl);
     if (name && !els.projectName.value.trim()) els.projectName.value = name;
     // Hand the logo to the other pages; a link to /preview is a fresh load.
-    await core.setWorkingLogo(blob, { filename, name: name || null, settings: getSettings() });
-    ready(`${filename} · ${core.formatBytes(blob.size)} · 미리보기·내보내기에 적용됨`);
+    // The canvas is already updated by this point, so a storage failure only
+    // costs the handover — it must never hold up the studio itself.
+    const carried = await core.setWorkingLogo(blob, {
+      filename,
+      name: name || null,
+      settings: getSettings(),
+    });
+    ready(
+      carried
+        ? `${filename} · ${core.formatBytes(blob.size)} · 미리보기·내보내기에 적용됨`
+        : `${filename} · ${core.formatBytes(blob.size)} · 적용됨 (다른 PLAZION 탭을 닫고 새로고침하면 미리보기까지 이어집니다)`
+    );
   }
 
   async function currentBlob() {
