@@ -150,273 +150,263 @@ export function HomePage() {
 export function StudioPage() {
   return (
     <>
-      <PageHead
-        eyebrow="One-stop logo workflow"
-        title="로고 작업실"
-        lede="파일 업로드, Genspark AI 생성, 결과 가져오기 중 하나로 로고를 확정하고 애니메이션 강도를 조절합니다."
-        aside={
+      {/* ===== Project bar — the document header of a tool, not a hero ===== */}
+      <div class="shell projectbar reveal">
+        <div class="projectbar__id">
+          <p class="eyebrow">PLAZION Studio · Workbench</p>
+          <input
+            id="project-name"
+            class="title-input"
+            type="text"
+            placeholder="프로젝트 이름"
+            autocomplete="off"
+          />
           <p id="studio-status" class="status" role="status" aria-live="polite">
-            로고를 준비해 주세요
+            로고를 확정하면 저장할 수 있습니다
           </p>
-        }
-      />
+        </div>
+        <div class="projectbar__actions">
+          <button id="new-project-btn" type="button" class="btn btn--ghost">
+            새 프로젝트
+          </button>
+          <button id="save-project-btn" type="button" class="btn">
+            프로젝트 저장
+          </button>
+        </div>
+      </div>
 
-      <section class="section section--flush">
-        <div class="shell studio-grid">
-          {/* ---- 01 Source ---- */}
-          <div class="studio-col stack stack-md">
-            <div class="spread">
-              <h2 class="h-card">
-                <span class="mono-label">01</span> 로고 소스
-              </h2>
-              <button id="new-project-btn" type="button" class="btn btn--quiet">
-                새 프로젝트
-              </button>
-            </div>
-
-            {/* Inline, not a modal: the essentials a project starts from —
-                name, preset, aspect, and the render defaults the preview page
-                will prefill. Everything else keeps its current value. */}
-            <div id="new-project-panel" class="card card--outline stack stack-sm" hidden>
-              <div class="field">
-                <label for="np-name">프로젝트 이름</label>
-                <input id="np-name" class="input" type="text" placeholder="예: GreenB 오프닝" />
-              </div>
-              <div class="pair">
-                <div class="field">
-                  <label for="np-preset">프리셋</label>
-                  <select id="np-preset" class="select"></select>
-                </div>
-                <div class="field">
-                  <label for="np-aspect">화면비</label>
-                  <select id="np-aspect" class="select">
-                    <option value="landscape">16:9 · 1920×1080</option>
-                    <option value="portrait">9:16 · 1080×1920</option>
-                  </select>
-                </div>
-              </div>
-              <div class="pair">
-                <div class="field">
-                  <label for="np-fps">렌더 FPS</label>
-                  <select id="np-fps" class="select">
-                    <option value="24">24</option>
-                    <option value="30" selected>30</option>
-                    <option value="60">60</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="np-duration">렌더 길이(초)</label>
-                  <input id="np-duration" class="input" type="number" min="0.5" max="30" step="0.5" value="3" />
-                </div>
-              </div>
-              <div class="cluster">
-                <button id="np-create" type="button" class="btn btn--sm">이 설정으로 시작</button>
-                <button id="np-cancel" type="button" class="btn btn--quiet">취소</button>
-              </div>
-            </div>
-
-            <div class="segmented segmented--light" role="tablist" aria-label="로고 소스 방식">
-              <button id="source-mode-upload" type="button" class="is-active" role="tab" aria-selected="true">
-                업로드
-              </button>
-              <button id="source-mode-ai" type="button" role="tab" aria-selected="false">
-                AI 생성
-              </button>
-              <button id="source-mode-import" type="button" role="tab" aria-selected="false">
-                가져오기
-              </button>
-            </div>
-
-            <div id="upload-source-panel">
-              <label id="logo-dropzone" class="dropzone" for="logo-upload">
-                <input
-                  id="logo-upload"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                  hidden
-                />
-                <strong class="h-card">파일을 놓거나 클릭해 선택</strong>
-                <span class="caption">PNG · JPEG · WebP · SVG · 투명 배경 권장</span>
-              </label>
-            </div>
-
-            <div id="ai-source-panel" class="stack stack-sm" hidden>
-              <div class="field">
-                <label for="ai-brand-name">브랜드 이름</label>
-                <input id="ai-brand-name" class="input" type="text" placeholder="PLAZION" />
-              </div>
-              <div class="field">
-                <label for="ai-logo-prompt">로고 설명</label>
-                <textarea
-                  id="ai-logo-prompt"
-                  class="textarea"
-                  placeholder="브랜드 성격, 심볼, 컬러와 분위기를 설명하세요."
-                ></textarea>
-              </div>
-              <div class="pair">
-                <div class="field">
-                  <label for="ai-logo-type">로고 형태</label>
-                  <select id="ai-logo-type" class="select">
-                    <option value="wordmark">워드마크</option>
-                    <option value="symbol">심볼</option>
-                    <option value="lockup" selected>
-                      심볼 + 워드마크
-                    </option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="ai-logo-style">스타일</label>
-                  <select id="ai-logo-style" class="select">
-                    <option value="future metallic">퓨처 메탈릭</option>
-                    <option value="flat geometric">플랫 지오메트릭</option>
-                    <option value="editorial minimal">에디토리얼 미니멀</option>
-                    <option value="organic">오가닉</option>
-                  </select>
-                </div>
-              </div>
-              <div class="pair">
-                <div class="field">
-                  <label for="ai-logo-palette">컬러</label>
-                  <input id="ai-logo-palette" class="input" type="text" placeholder="#A8E85C 단색" />
-                </div>
-                <div class="field">
-                  <label for="ai-logo-model">모델</label>
-                  <select id="ai-logo-model" class="select">
-                    <option value="nano-banana-2-flash-lite">빠른 생성</option>
-                    <option value="nano-banana-2">표준</option>
-                    <option value="nano-banana-pro">고품질</option>
-                    <option value="gpt-image-2">GPT Image 2</option>
-                  </select>
-                </div>
-              </div>
-              <div class="field">
-                <label for="ai-logo-avoid">피할 요소</label>
-                <input id="ai-logo-avoid" class="input" type="text" placeholder="순환 화살표, 지구본, 새싹" />
-              </div>
-              <div class="field">
-                <label for="ai-logo-originality">독창성</label>
-                <input id="ai-logo-originality" class="range" type="range" min="0" max="100" value="60" />
-              </div>
-              <button id="generate-logo-btn" type="button" class="btn">
-                Genspark AI로 생성
-              </button>
-              <p class="micro">
-                생성은 Genspark 크레딧을 사용하며 Orbitron의 <code>GSK_API_KEY</code>로 호출됩니다.
-              </p>
-            </div>
-
-            <div id="import-source-panel" class="stack stack-sm" hidden>
-              <div id="genspark-paste-zone" class="dropzone" tabindex="0">
-                <strong class="h-card">이미지를 여기에 붙여넣기</strong>
-                <span class="caption">Genspark 결과를 복사한 뒤 Ctrl+V</span>
-              </div>
-              <div class="field">
-                <label for="genspark-import-url">또는 이미지 주소</label>
-                <input id="genspark-import-url" class="input" type="url" placeholder="https://...genspark.ai/..." />
-              </div>
-              <button id="import-genspark-btn" type="button" class="btn btn--ghost">
-                주소로 가져오기
-              </button>
-            </div>
-
-            <p id="source-ready-status" class="status"></p>
+      {/* Inline, not a modal: the essentials a project starts from. */}
+      <div class="shell">
+        <div id="new-project-panel" class="card card--outline stack stack-sm np-panel" hidden>
+          <div class="field">
+            <label for="np-name">프로젝트 이름</label>
+            <input id="np-name" class="input" type="text" placeholder="예: GreenB 오프닝" />
           </div>
-
-          {/* ---- 02 Settings ---- */}
-          <div class="studio-col stack stack-md">
-            <h2 class="h-card">
-              <span class="mono-label">02</span> 애니메이션 설정
-            </h2>
-
+          <div class="pair">
             <div class="field">
-              <label for="project-name">프로젝트 이름</label>
-              <input id="project-name" class="input" type="text" placeholder="PLAZION VFX Intro" />
+              <label for="np-preset">프리셋</label>
+              <select id="np-preset" class="select"></select>
             </div>
-
             <div class="field">
-              <label for="preset-select">프리셋</label>
-              <div class="cluster" style="flex-wrap:nowrap">
-                <select id="preset-select" class="select"></select>
-                <button id="delete-preset-btn" type="button" class="btn btn--ghost btn--sm">
-                  삭제
-                </button>
-              </div>
+              <label for="np-aspect">화면비</label>
+              <select id="np-aspect" class="select">
+                <option value="landscape">16:9 · 1920×1080</option>
+                <option value="portrait">9:16 · 1080×1920</option>
+              </select>
             </div>
-
             <div class="field">
-              <div class="spread">
-                <span class="field-label">글로우</span>
-                <span id="glow-value" class="mono-label">100%</span>
-              </div>
-              <input id="glow-range" class="range" type="range" min="0" max="200" value="100" />
+              <label for="np-fps">렌더 FPS</label>
+              <select id="np-fps" class="select">
+                <option value="24">24</option>
+                <option value="30" selected>30</option>
+                <option value="60">60</option>
+              </select>
             </div>
-
             <div class="field">
-              <div class="spread">
-                <span class="field-label">모션 에너지</span>
-                <span id="energy-value" class="mono-label">100%</span>
-              </div>
-              <input id="energy-range" class="range" type="range" min="40" max="180" value="100" />
+              <label for="np-duration">렌더 길이(초)</label>
+              <input id="np-duration" class="input" type="number" min="0.5" max="30" step="0.5" value="3" />
             </div>
-
-            <fieldset class="field fieldset">
-              <legend class="field-label">출력 화면비</legend>
-              <label class="checkline">
-                <input type="radio" name="studio-aspect" value="landscape" checked />
-                <span>16:9 · 1920×1080</span>
-              </label>
-              <label class="checkline">
-                <input type="radio" name="studio-aspect" value="portrait" />
-                <span>9:16 · 1080×1920</span>
-              </label>
-            </fieldset>
-
-            <label class="checkline">
-              <input id="auto-preset-toggle" type="checkbox" checked />
-              <span>
-                저장 시 프리셋 자동 등록
-                <br />
-                <span class="micro">현재 설정을 다음 프로젝트에서도 바로 사용합니다.</span>
-              </span>
-            </label>
-
-            <div class="studio-preview">
-              <div class="spread">
-                <p class="mono-label">Live preview</p>
-                <p class="mono-label"><span id="loop-count">0</span> loops</p>
-              </div>
-              {/* Which animation plays here: the built-in engine, or — after a
-                  handoff is adopted — that handoff's own concepts. */}
-              <div class="field" id="studio-anim-field" hidden>
-                <select id="studio-anim" class="select select--on-dark"></select>
-              </div>
-              <div id="canvas-wrap" class="canvas-wrap canvas-wrap--landscape">
-                <canvas id="intro-canvas" width="1920" height="1080" aria-label="설정 미리보기"></canvas>
-              </div>
-              <div id="studio-proto" class="handoff-frame" hidden></div>
-              <p id="studio-anim-note" class="micro"></p>
-            </div>
-
-            <button id="save-project-btn" type="button" class="btn">
-              프로젝트 저장
-            </button>
-
-            <hr class="rule" />
-
-            <div class="cluster">
-              <a id="studio-preview-btn" class="btn btn--quiet" href="/preview">
-                미리보기에서 열기
-              </a>
-              <a id="studio-download-btn" class="btn btn--quiet" href="/preview#export">
-                PNG 시퀀스 내보내기
-              </a>
-              <button id="download-current-logo-btn" type="button" class="btn btn--quiet">
-                현재 로고 다운로드
-              </button>
-            </div>
+          </div>
+          <div class="cluster">
+            <button id="np-create" type="button" class="btn btn--sm">이 설정으로 시작</button>
+            <button id="np-cancel" type="button" class="btn btn--quiet">취소</button>
           </div>
         </div>
-      </section>
+      </div>
+
+      {/* ===== Workbench: source rail · stage · control rail ===== */}
+      <div class="shell workbench">
+        {/* ---- 01 Source ---- */}
+        <aside class="rail rail--source stack stack-md" aria-label="로고 소스">
+          <h2 class="rail__title">
+            <span class="mono-label">01</span> 소스
+          </h2>
+
+          <div class="segmented segmented--light segmented--fill" role="tablist" aria-label="로고 소스 방식">
+            <button id="source-mode-upload" type="button" class="is-active" role="tab" aria-selected="true">
+              업로드
+            </button>
+            <button id="source-mode-ai" type="button" role="tab" aria-selected="false">
+              AI 생성
+            </button>
+            <button id="source-mode-import" type="button" role="tab" aria-selected="false">
+              가져오기
+            </button>
+          </div>
+
+          <div id="upload-source-panel">
+            <label id="logo-dropzone" class="dropzone dropzone--tight" for="logo-upload">
+              <input id="logo-upload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
+              <strong>파일을 놓거나 클릭</strong>
+              <span class="caption">PNG · JPEG · WebP · SVG · 투명 배경 권장</span>
+            </label>
+          </div>
+
+          <div id="ai-source-panel" class="stack stack-sm" hidden>
+            <div class="field">
+              <label for="ai-brand-name">브랜드 이름</label>
+              <input id="ai-brand-name" class="input" type="text" placeholder="PLAZION" />
+            </div>
+            <div class="field">
+              <label for="ai-logo-prompt">로고 설명</label>
+              <textarea id="ai-logo-prompt" class="textarea" placeholder="브랜드 성격, 심볼, 컬러와 분위기를 설명하세요."></textarea>
+            </div>
+            <div class="pair">
+              <div class="field">
+                <label for="ai-logo-type">로고 형태</label>
+                <select id="ai-logo-type" class="select">
+                  <option value="wordmark">워드마크</option>
+                  <option value="symbol">심볼</option>
+                  <option value="lockup" selected>심볼 + 워드마크</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="ai-logo-style">스타일</label>
+                <select id="ai-logo-style" class="select">
+                  <option value="future metallic">퓨처 메탈릭</option>
+                  <option value="flat geometric">플랫 지오메트릭</option>
+                  <option value="editorial minimal">에디토리얼 미니멀</option>
+                  <option value="organic">오가닉</option>
+                </select>
+              </div>
+            </div>
+            <div class="pair">
+              <div class="field">
+                <label for="ai-logo-palette">컬러</label>
+                <input id="ai-logo-palette" class="input" type="text" placeholder="#A8E85C 단색" />
+              </div>
+              <div class="field">
+                <label for="ai-logo-model">모델</label>
+                <select id="ai-logo-model" class="select">
+                  <option value="nano-banana-2-flash-lite">빠른 생성</option>
+                  <option value="nano-banana-2">표준</option>
+                  <option value="nano-banana-pro">고품질</option>
+                  <option value="gpt-image-2">GPT Image 2</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label for="ai-logo-avoid">피할 요소</label>
+              <input id="ai-logo-avoid" class="input" type="text" placeholder="순환 화살표, 지구본, 새싹" />
+            </div>
+            <div class="field">
+              <label for="ai-logo-originality">독창성</label>
+              <input id="ai-logo-originality" class="range" type="range" min="0" max="100" value="60" />
+            </div>
+            <button id="generate-logo-btn" type="button" class="btn">
+              Genspark AI로 생성
+            </button>
+            <p class="micro">생성은 Genspark 크레딧을 사용하며 Orbitron의 <code>GSK_API_KEY</code>로 호출됩니다.</p>
+          </div>
+
+          <div id="import-source-panel" class="stack stack-sm" hidden>
+            <div id="genspark-paste-zone" class="dropzone dropzone--tight" tabindex="0">
+              <strong>이미지를 여기에 붙여넣기</strong>
+              <span class="caption">Genspark 결과를 복사한 뒤 Ctrl+V</span>
+            </div>
+            <div class="field">
+              <label for="genspark-import-url">또는 이미지 주소</label>
+              <input id="genspark-import-url" class="input" type="url" placeholder="https://...genspark.ai/..." />
+            </div>
+            <button id="import-genspark-btn" type="button" class="btn btn--ghost">
+              주소로 가져오기
+            </button>
+          </div>
+
+          <p id="source-ready-status" class="status"></p>
+        </aside>
+
+        {/* ---- 02 Stage ---- */}
+        <section class="stagecol" aria-label="라이브 스테이지">
+          <div class="studio-preview studio-preview--stage">
+            <div class="spread">
+              <p class="mono-label">
+                <span class="mono-label">02</span> Stage
+              </p>
+              <p class="mono-label"><span id="loop-count">0</span> loops</p>
+            </div>
+            <div class="field" id="studio-anim-field" hidden>
+              <select id="studio-anim" class="select select--on-dark"></select>
+            </div>
+            <div id="canvas-wrap" class="canvas-wrap canvas-wrap--landscape">
+              <canvas id="intro-canvas" width="1920" height="1080" aria-label="설정 미리보기"></canvas>
+            </div>
+            <div id="studio-proto" class="handoff-frame" hidden></div>
+            <p id="studio-anim-note" class="micro"></p>
+          </div>
+        </section>
+
+        {/* ---- 03 Controls · 04 Output ---- */}
+        <aside class="rail rail--control stack stack-md" aria-label="설정과 출력">
+          <h2 class="rail__title">
+            <span class="mono-label">03</span> 설정
+          </h2>
+
+          <div class="field">
+            <label for="preset-select">프리셋</label>
+            <div class="cluster" style="flex-wrap:nowrap">
+              <select id="preset-select" class="select"></select>
+              <button id="delete-preset-btn" type="button" class="btn btn--ghost btn--sm">
+                삭제
+              </button>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="spread">
+              <span class="field-label">글로우</span>
+              <span id="glow-value" class="mono-label">100%</span>
+            </div>
+            <input id="glow-range" class="range" type="range" min="0" max="200" value="100" />
+          </div>
+
+          <div class="field">
+            <div class="spread">
+              <span class="field-label">모션 에너지</span>
+              <span id="energy-value" class="mono-label">100%</span>
+            </div>
+            <input id="energy-range" class="range" type="range" min="40" max="180" value="100" />
+          </div>
+
+          <fieldset class="field fieldset">
+            <legend class="field-label">출력 화면비</legend>
+            <label class="checkline">
+              <input type="radio" name="studio-aspect" value="landscape" checked />
+              <span>16:9 · 1920×1080</span>
+            </label>
+            <label class="checkline">
+              <input type="radio" name="studio-aspect" value="portrait" />
+              <span>9:16 · 1080×1920</span>
+            </label>
+          </fieldset>
+
+          <label class="checkline">
+            <input id="auto-preset-toggle" type="checkbox" checked />
+            <span>
+              저장 시 프리셋 자동 등록
+              <br />
+              <span class="micro">현재 설정을 다음 프로젝트에서도 바로 사용합니다.</span>
+            </span>
+          </label>
+
+          <hr class="rule" />
+
+          <h2 class="rail__title">
+            <span class="mono-label">04</span> 출력
+          </h2>
+          <div class="stack stack-sm">
+            <a id="studio-preview-btn" class="btn btn--ghost btn--sm" href="/preview">
+              미리보기 · 렌더링 열기
+            </a>
+            <a id="studio-download-btn" class="btn btn--quiet" href="/preview#export">
+              PNG 시퀀스 내보내기
+            </a>
+            <button id="download-current-logo-btn" type="button" class="btn btn--quiet">
+              현재 로고 다운로드
+            </button>
+          </div>
+        </aside>
+      </div>
     </>
   )
 }

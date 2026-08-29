@@ -675,3 +675,79 @@ img { max-width: 100%; display: block; }
   text-transform: none;
   color: var(--ink);
 }
+
+/* ===== Studio workbench =========================================== */
+
+/* Project bar — the document header of a tool: identity left, actions right,
+   the name itself an editorial input rather than a heading you cannot touch. */
+.projectbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--gap-xl);
+  padding-block: clamp(28px, 4vw, 48px) clamp(14px, 2vw, 22px);
+}
+
+.projectbar__id { display: grid; gap: 8px; min-width: 0; flex: 1 1 420px; }
+.projectbar__actions { display: flex; gap: var(--gap-md); }
+
+.title-input {
+  width: 100%;
+  padding: 2px 0 8px;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: none;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: clamp(26px, 3.4vw, 44px);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.title-input::placeholder { color: var(--muted); }
+.title-input:hover { border-bottom-color: var(--hairline); }
+.title-input:focus { border-bottom-color: var(--primary); outline: none; border-radius: 0; }
+
+.np-panel { margin-bottom: var(--gap-xl); }
+
+/* Three zones: source rail · stage · control rail. The stage carries the
+   visual weight; the rails read as a tool's side panels. */
+.workbench {
+  display: grid;
+  gap: clamp(20px, 2.5vw, 36px);
+  align-items: start;
+  padding-bottom: var(--band);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1180px) {
+  .workbench { grid-template-columns: 300px minmax(0, 1fr) 300px; }
+  .workbench .rail { position: sticky; top: 84px; }
+  .workbench .stagecol { position: sticky; top: 84px; }
+}
+
+@media (min-width: 780px) and (max-width: 1179.98px) {
+  .workbench { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .workbench .stagecol { grid-column: 1 / -1; grid-row: 1; }
+}
+
+.rail__title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hairline);
+  font-family: var(--display);
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.segmented--fill { display: flex; }
+.segmented--fill button { flex: 1; }
+
+.dropzone--tight { padding: 22px 14px; gap: 6px; }
+.dropzone--tight strong { font-family: var(--display); font-size: 16px; }
+
+.studio-preview--stage { padding: clamp(16px, 1.8vw, 24px); border-radius: var(--r-lg); }
+.studio-preview--stage .canvas-wrap { max-width: none; }
+.studio-preview--stage .canvas-wrap--portrait { max-width: 340px; }
