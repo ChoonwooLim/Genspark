@@ -114,6 +114,7 @@
             <button type="button" class="btn btn--ghost btn--sm" data-action="adopt">작업실에 적용</button>
             <button type="button" class="btn btn--quiet" data-action="detail">내용</button>
             <button type="button" class="btn btn--quiet" data-action="preview">원본 재생</button>
+            <button type="button" class="btn btn--quiet" data-action="reparse">스펙 다시 읽기</button>
             <button type="button" class="btn btn--quiet" data-action="delete">삭제</button>
           </div>
         </article>`
@@ -134,7 +135,7 @@
     const h = body.handoff;
     const spec = h.spec || {};
     const timeline = (spec.timeline || [])
-      .map((t) => `<tr><td>${esc(t.start)}–${esc(t.end)}s</td><td>${esc(t.frames || '')}</td><td>${esc(t.event)}</td></tr>`)
+      .map((t) => `<tr><td>${esc(t.label || `${t.start}–${t.end}s`)}</td><td>${esc(t.frames || '')}</td><td>${esc(t.event)}</td></tr>`)
       .join('');
     const files = (h.manifest || [])
       .map(
@@ -147,7 +148,16 @@
     els.detail.innerHTML = `
       <header><h3>${esc(h.name)}</h3><button type="button" class="btn btn--quiet" data-action="close-detail">닫기</button></header>
       <dl class="handoff-spec">
-        ${Object.entries(spec.colors || {}).map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}
+        ${[
+          spec.duration ? ['Duration', `${spec.duration}s`] : null,
+          spec.fps ? ['Frame rate', `${spec.fps}fps`] : null,
+          ...Object.entries(spec.resolutions || {}).map(([k, v]) => [k, `${v.width} × ${v.height}`]),
+          ...(spec.tokens || []).map((t) => [t.name, t.value]),
+          ...Object.entries(spec.colors || {}).filter(([k]) => !(spec.tokens || []).some((t) => t.name.toLowerCase() === k)).map(([k, v]) => [k, v]),
+        ]
+          .filter(Boolean)
+          .map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`)
+          .join('')}
       </dl>
       ${timeline ? `<table class="handoff-timeline"><thead><tr><th>시간</th><th>프레임</th><th>이벤트</th></tr></thead><tbody>${timeline}</tbody></table>` : ''}
       <details><summary>파일 ${(h.manifest || []).length}개</summary><ul class="handoff-files">${files}</ul></details>`;
@@ -280,6 +290,11 @@
       if (button.dataset.action === 'adopt') adopt(bundle);
       if (button.dataset.action === 'detail') await showDetail(bundle);
       if (button.dataset.action === 'preview') showPreview(bundle);
+      if (button.dataset.action === 'reparse') {
+        const body = await write(`/api/handoffs/${encodeURIComponent(bundle.id)}/reparse`, { method: 'POST' });
+        say(`“${bundle.name}” 스펙을 다시 읽었습니다 · ${specSummary(body.handoff.spec) || '읽을 스펙이 없습니다'}`, 'success');
+        await refresh();
+      }
       if (button.dataset.action === 'delete') {
         if (!window.confirm(`“${bundle.name}” 번들을 삭제할까요?`)) return;
         await write(`/api/handoffs/${encodeURIComponent(bundle.id)}`, { method: 'DELETE' });

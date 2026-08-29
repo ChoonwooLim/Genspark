@@ -68,8 +68,14 @@ const SCHEMA = `
     ON handoff_bundles (created_at DESC);
 `
 
-/** Pull the machine-usable values out of a handoff README: master specs,
- *  variant list with the selected one flagged, and the timeline table. */
+/** Pull the machine-usable values out of a handoff README.
+ *
+ *  Handoffs do not share one shape. The PLAZION bundle puts its numbers in a
+ *  two-column "Master Specifications" table with a three-column timeline in
+ *  seconds; the GreenB bundle states the same things as a Korean bullet list
+ *  with a two-column timeline in milliseconds. So rather than matching one
+ *  layout, this collects key/value facts from every table row and every
+ *  `- **key:** value` bullet, then looks them up by meaning. */
 export function parseHandoffSpec(md: string) {
   const spec: any = {
     title: null,
@@ -77,6 +83,7 @@ export function parseHandoffSpec(md: string) {
     fps: null,
     resolutions: {} as Record<string, { width: number; height: number }>,
     colors: {} as Record<string, string>,
+    tokens: [] as { name: string; value: string }[],
     variants: [] as any[],
     timeline: [] as any[],
   }
@@ -84,59 +91,124 @@ export function parseHandoffSpec(md: string) {
   const title = md.match(/^#\s+(?:Handoff:\s*)?(.+)$/m)
   if (title) spec.title = title[1].trim()
 
-  const strip = (s: string) => s.replace(/\*\*/g, '').replace(/`/g, '').trim()
-  const rows = [...md.matchAll(/^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*$/gm)]
-    .map((m) => [m[1].trim(), m[2].trim()] as [string, string])
-    .filter(([k]) => k && !/^-+$/.test(k) && k.toLowerCase() !== 'property')
-  const find = (re: RegExp) => rows.find(([k]) => re.test(k))?.[1]
+  const clean = (value: string) => value.replace(/\*\*/g, '').replace(/`/g, '').trim()
 
-  const duration = find(/^duration$/i)
-  const durationMatch = duration && strip(duration).match(/([\d.]+)\s*s/i)
-  if (durationMatch) spec.duration = Number(durationMatch[1])
-
-  const fps = find(/frame rate/i)
-  const fpsMatch = fps && strip(fps).match(/(\d+)\s*fps/i)
-  if (fpsMatch) spec.fps = Number(fpsMatch[1])
-
-  for (const [re, label] of [
-    [/landscape resolution/i, 'landscape'],
-    [/portrait resolution/i, 'portrait'],
-  ] as [RegExp, string][]) {
-    const value = find(re)
-    const m = value && strip(value).match(/(\d+)\s*[×x]\s*(\d+)/i)
-    if (m) spec.resolutions[label] = { width: Number(m[1]), height: Number(m[2]) }
+  // Every markdown table row, split into cells, plus bullet definitions.
+  const rows: string[][] = []
+  for (const line of md.split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      const cells = trimmed.slice(1, -1).split('|').map((cell) => cell.trim())
+      if (cells.length >= 2 && !cells.every((cell) => /^:?-+:?$/.test(cell))) rows.push(cells)
+    }
   }
 
-  for (const [re, label] of [
-    [/^background$/i, 'background'],
-    [/primary logo color/i, 'primary'],
-    [/accent glow/i, 'accent'],
-    [/impact flash/i, 'flash'],
-  ] as [RegExp, string][]) {
-    const value = find(re)
-    if (value) spec.colors[label] = strip(value)
+  const facts: [string, string][] = rows
+    .filter((cells) => cells[0] && cells[1])
+    .map((cells) => [clean(cells[0]), clean(cells[1])] as [string, string])
+
+  for (const match of md.matchAll(/^\s*[-*]\s+\*\*([^:*]+):?\*\*:?\s*(.+)$/gm)) {
+    facts.push([clean(match[1]), clean(match[2])])
   }
 
-  for (const m of md.matchAll(
+  // Bullet keys can be prose, and a timeline header row ("| 시간 | 이벤트 |")
+  // is a fact too. Restrict lookups to short label-like keys and let the caller
+  // reject a match that does not actually parse, so the first loose hit cannot
+  // shadow the real value further down.
+  const labelFacts = facts.filter(([key]) => key.length <= 24)
+  const findAll = (re: RegExp) => labelFacts.filter(([key]) => re.test(key)).map(([, value]) => value)
+  const find = (re: RegExp) => findAll(re)[0]
+
+  // ---- duration: "3.0 s", "5.00s", "5000ms" ----
+  for (const candidate of findAll(/^(duration|길이|재생\s*시간|러닝\s*타임)$/i)) {
+    const ms = candidate.match(/([\d.]+)\s*ms/i)
+    const sec = candidate.match(/([\d.]+)\s*s(?![a-z])/i)
+    if (ms) spec.duration = Number(ms[1]) / 1000
+    else if (sec) spec.duration = Number(sec[1])
+    if (spec.duration != null) break
+  }
+
+  // ---- frame rate ----
+  for (const candidate of findAll(/frame\s*rate|(^|\s)fps|프레임\s*(레이트|률|수)/i)) {
+    const match = candidate.match(/(\d+)\s*fps/i)
+    if (match) {
+      spec.fps = Number(match[1])
+      break
+    }
+  }
+
+  // ---- resolutions ----
+  const readSize = (value?: string) => {
+    const m = value && value.match(/(\d{2,5})\s*[×x*]\s*(\d{2,5})/i)
+    return m ? { width: Number(m[1]), height: Number(m[2]) } : null
+  }
+  const landscape = readSize(find(/landscape\s*resolution|가로\s*해상도/i))
+  const portrait = readSize(find(/portrait\s*resolution|세로\s*해상도/i))
+  if (landscape) spec.resolutions.landscape = landscape
+  if (portrait) spec.resolutions.portrait = portrait
+  if (!landscape && !portrait) {
+    // A single stated resolution: classify it by its own orientation.
+    const only = readSize(find(/^(resolution|해상도|출력\s*해상도|캔버스)$/i))
+    if (only) spec.resolutions[only.width >= only.height ? 'landscape' : 'portrait'] = only
+  }
+
+  // ---- named colours ----
+  for (const [re, label] of [
+    [/^(background|배경|배경색)$/i, 'background'],
+    [/^(primary(\s*logo)?\s*colou?r|주\s*색|브랜드\s*컬러|primary)$/i, 'primary'],
+    [/^(accent(\s*glow)?|강조\s*색|발광\s*색)$/i, 'accent'],
+    [/^(impact\s*flash|임팩트\s*플래시)$/i, 'flash'],
+  ] as [RegExp, string][]) {
+    const value = find(re)
+    if (value) spec.colors[label] = value
+  }
+
+  // ---- design tokens: any row whose value carries a colour literal ----
+  const seen = new Set<string>()
+  for (const [key, value] of facts) {
+    if (!/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i.test(value)) continue
+    if (seen.has(key)) continue
+    seen.add(key)
+    spec.tokens.push({ name: key, value })
+  }
+
+  // ---- variants (optional; only some handoffs offer alternatives) ----
+  for (const match of md.matchAll(
     /^###\s*(✅\s*)?Variant\s*(\d+)\s*[—-]\s*([^(\n]+?)(?:\s*\(([^)]*)\))?\s*$/gm
   )) {
     spec.variants.push({
-      number: Number(m[2]),
-      name: m[3].trim(),
-      selected: Boolean(m[1]) || /selected/i.test(m[4] || ''),
-      note: (m[4] || '').trim() || null,
+      number: Number(match[2]),
+      name: match[3].trim(),
+      selected: Boolean(match[1]) || /selected/i.test(match[4] || ''),
+      note: (match[4] || '').trim() || null,
     })
   }
 
-  // Timeline rows: | 0.15 – 1.60 | 5 – 48 | **Voxel pop-in.** ... |
-  for (const m of md.matchAll(
-    /^\|\s*([\d.]+)\s*[–-]\s*([\d.]+)\s*\|\s*([^|]*?)\s*\|\s*([^|]+?)\s*\|\s*$/gm
-  )) {
-    const event = strip(m[4])
+  // ---- timeline: any table row starting with a time or time range ----
+  const TIME = /^([\d.]+)\s*(ms|s)?\s*(?:[–—-]\s*([\d.]+)\s*(ms|s)?)?\s*$/i
+  for (const cells of rows) {
+    const raw = cells[0].replace(/\*\*/g, '').trim()
+    // A layer table's first column is 1, 2, 3 — those parse as times but are
+    // not. Require a unit, a range, or a decimal before treating it as one.
+    if (!/ms|s|[–—-]|\./i.test(raw)) continue
+    const match = raw.match(TIME)
+    if (!match) continue
+    const event = clean(cells[cells.length - 1])
+    if (!event || TIME.test(event)) continue
+
+    // Unit is stated on either end of the range; seconds when absent, which is
+    // how the PLAZION table's "Time (s)" column is written.
+    const unit = (match[4] || match[2] || 's').toLowerCase()
+    const scale = unit === 'ms' ? 0.001 : 1
+    const start = Number(match[1]) * scale
+    const end = match[3] === undefined ? start : Number(match[3]) * scale
+    if (!Number.isFinite(start) || !Number.isFinite(end)) continue
+
     spec.timeline.push({
-      start: Number(m[1]),
-      end: Number(m[2]),
-      frames: strip(m[3]) || null,
+      start: Number(start.toFixed(3)),
+      end: Number(end.toFixed(3)),
+      label: raw,
+      frames: cells.length >= 3 ? clean(cells[1]) || null : null,
       event: event.length > 400 ? `${event.slice(0, 400)}…` : event,
     })
   }
@@ -345,6 +417,38 @@ export async function createHandoffApi() {
         'Content-Security-Policy': 'sandbox allow-scripts',
       },
     })
+  })
+
+  /** Re-read the stored README with the current parser. The bundle's files
+   *  are already on disk, so improving the parser should not mean re-uploading
+   *  everything that was imported before it. */
+  api.post('/:id/reparse', async (c) => {
+    const blocked = requireDb(c)
+    if (blocked) return blocked
+    if (!authorized(c)) return denied(c)
+
+    const id = c.req.param('id')
+    const { rows } = await pool
+      .query('SELECT entrypoints FROM handoff_bundles WHERE id = $1', [id])
+      .catch(() => ({ rows: [] }))
+    if (!rows[0]) return c.json({ error: 'not_found' }, 404)
+
+    const readme = rows[0].entrypoints?.readme
+    if (!readme) return c.json({ error: '이 번들에는 README가 없습니다.' }, 422)
+
+    let spec: any
+    try {
+      const text = await fs.readFile(path.join(rootDir, id, readme), 'utf8')
+      spec = parseHandoffSpec(text)
+    } catch {
+      return c.json({ error: 'README를 다시 읽지 못했습니다.' }, 410)
+    }
+
+    const updated = await pool.query(
+      'UPDATE handoff_bundles SET spec = $2 WHERE id = $1 RETURNING *',
+      [id, JSON.stringify(spec)]
+    )
+    return c.json({ handoff: rowToBundle(updated.rows[0]) })
   })
 
   api.delete('/:id', async (c) => {
