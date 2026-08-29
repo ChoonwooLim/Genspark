@@ -151,7 +151,7 @@ export function StudioPage() {
   return (
     <>
       {/* ===== Project bar — the document header of a tool, not a hero ===== */}
-      <div class="shell projectbar reveal">
+      <div class="shell shell--wide projectbar reveal">
         <div class="projectbar__id">
           <p class="eyebrow">PLAZION Studio · Workbench</p>
           <input
@@ -176,7 +176,7 @@ export function StudioPage() {
       </div>
 
       {/* Inline, not a modal: the essentials a project starts from. */}
-      <div class="shell">
+      <div class="shell shell--wide">
         <div id="new-project-panel" class="card card--outline stack stack-sm np-panel" hidden>
           <div class="field">
             <label for="np-name">프로젝트 이름</label>
@@ -215,14 +215,15 @@ export function StudioPage() {
       </div>
 
       {/* ===== Workbench: source rail · stage · control rail ===== */}
-      <div class="shell workbench">
+      <div class="shell shell--wide workbench">
         {/* ---- 01 Source ---- */}
-        <aside class="rail rail--source stack stack-md" aria-label="로고 소스">
-          <h2 class="rail__title">
-            <span class="mono-label">01</span> 소스
+        <aside class="panel" aria-label="로고 소스">
+          <h2 class="step">
+            <span class="step__n">01</span> 소스
+            <span class="step__rule" aria-hidden="true"></span>
           </h2>
 
-          <div class="segmented segmented--light segmented--fill" role="tablist" aria-label="로고 소스 방식">
+          <div class="segmented segmented--fill" role="tablist" aria-label="로고 소스 방식">
             <button id="source-mode-upload" type="button" class="is-active" role="tab" aria-selected="true">
               업로드
             </button>
@@ -234,12 +235,29 @@ export function StudioPage() {
             </button>
           </div>
 
-          <div id="upload-source-panel">
+          <div id="upload-source-panel" class="stack stack-sm">
             <label id="logo-dropzone" class="dropzone dropzone--tight" for="logo-upload">
               <input id="logo-upload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
               <strong>파일을 놓거나 클릭</strong>
-              <span class="caption">PNG · JPEG · WebP · SVG · 투명 배경 권장</span>
+              <span class="caption">PNG · JPEG · WebP · SVG</span>
             </label>
+            {/* The rail's one control needs something to stand on. These are
+                the constraints the voxel pass actually cares about, so they
+                earn the space rather than filling it. */}
+            <dl class="spec-mini">
+              <div>
+                <dt>배경</dt>
+                <dd>투명 PNG 권장</dd>
+              </div>
+              <div>
+                <dt>최소 크기</dt>
+                <dd>가로 512px 이상</dd>
+              </div>
+              <div>
+                <dt>여백</dt>
+                <dd>사방 10% 확보</dd>
+              </div>
+            </dl>
           </div>
 
           <div id="ai-source-panel" class="stack stack-sm" hidden>
@@ -316,15 +334,16 @@ export function StudioPage() {
           <p id="source-ready-status" class="status"></p>
         </aside>
 
-        {/* ---- 02 Stage ---- */}
+        {/* ---- 02 Stage — the dominant element on the page ---- */}
         <section class="stagecol" aria-label="라이브 스테이지">
-          <div class="studio-preview studio-preview--stage">
-            <div class="spread">
-              <p class="mono-label">
-                <span class="mono-label">02</span> Stage
-              </p>
-              <p class="mono-label"><span id="loop-count">0</span> loops</p>
-            </div>
+          <div class="stage-console">
+            <h2 class="step">
+              <span class="step__n">02</span> 스테이지
+              <span class="step__rule" aria-hidden="true"></span>
+              <span class="step__meta">
+                <span id="loop-count">0</span> loops
+              </span>
+            </h2>
             <div class="field" id="studio-anim-field" hidden>
               <select id="studio-anim" class="select select--on-dark"></select>
             </div>
@@ -336,74 +355,99 @@ export function StudioPage() {
           </div>
         </section>
 
-        {/* ---- 03 Controls · 04 Output ---- */}
-        <aside class="rail rail--control stack stack-md" aria-label="설정과 출력">
-          <h2 class="rail__title">
-            <span class="mono-label">03</span> 설정
-          </h2>
+        {/* ---- 03 Controls · 04 Output ----
+             One surface, two sections divided by a rule — an inspector, not
+             two floating cards. ---- */}
+        <aside class="panel" aria-label="설정과 출력">
+          <div class="stack panel__section">
+            <h2 class="step">
+              <span class="step__n">03</span> 설정
+              <span class="step__rule" aria-hidden="true"></span>
+            </h2>
 
-          <div class="field">
-            <label for="preset-select">프리셋</label>
-            <div class="cluster" style="flex-wrap:nowrap">
-              <select id="preset-select" class="select"></select>
-              <button id="delete-preset-btn" type="button" class="btn btn--ghost btn--sm">
-                삭제
+            <div class="field">
+              <label for="preset-select">프리셋</label>
+              <div class="preset-picker">
+                <select id="preset-select" class="select"></select>
+                <button id="delete-preset-btn" type="button" class="btn btn--ghost btn--sm">
+                  삭제
+                </button>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="spread">
+                <span class="field-label">글로우</span>
+                <span id="glow-value" class="mono-label readout">100%</span>
+              </div>
+              <input id="glow-range" class="range" type="range" min="0" max="200" value="100" />
+            </div>
+
+            <div class="field">
+              <div class="spread">
+                <span class="field-label">모션 에너지</span>
+                <span id="energy-value" class="mono-label readout">100%</span>
+              </div>
+              <input id="energy-range" class="range" type="range" min="40" max="180" value="100" />
+            </div>
+
+            {/* Two ratios are an either/or, so they sit as a pair of tiles
+                rather than two stacked radio lines. */}
+            <fieldset class="field fieldset">
+              <legend class="field-label">출력 화면비</legend>
+              <div class="aspect-grid">
+                <label class="aspect-choice">
+                  <span class="aspect-choice__top">
+                    <input type="radio" name="studio-aspect" value="landscape" checked />
+                    <span class="aspect-choice__ratio">16:9</span>
+                  </span>
+                  <span class="aspect-choice__px">1920×1080</span>
+                </label>
+                <label class="aspect-choice">
+                  <span class="aspect-choice__top">
+                    <input type="radio" name="studio-aspect" value="portrait" />
+                    <span class="aspect-choice__ratio">9:16</span>
+                  </span>
+                  <span class="aspect-choice__px">1080×1920</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <label class="checkline">
+              <input id="auto-preset-toggle" type="checkbox" checked />
+              <span>
+                저장 시 프리셋 자동 등록
+                <br />
+                <span class="micro">현재 설정을 다음 프로젝트에서도 바로 사용합니다.</span>
+              </span>
+            </label>
+          </div>
+
+          <div class="stack panel__section">
+            <h2 class="step">
+              <span class="step__n">04</span> 출력
+              <span class="step__rule" aria-hidden="true"></span>
+            </h2>
+            <div class="out-rows">
+              <a id="studio-preview-btn" class="out-row" href="/preview">
+                미리보기 · 렌더링
+                <span class="out-row__go" aria-hidden="true">
+                  →
+                </span>
+              </a>
+              <a id="studio-download-btn" class="out-row" href="/preview#export">
+                PNG 시퀀스 내보내기
+                <span class="out-row__go" aria-hidden="true">
+                  →
+                </span>
+              </a>
+              <button id="download-current-logo-btn" type="button" class="out-row">
+                현재 로고 다운로드
+                <span class="out-row__go" aria-hidden="true">
+                  ↓
+                </span>
               </button>
             </div>
-          </div>
-
-          <div class="field">
-            <div class="spread">
-              <span class="field-label">글로우</span>
-              <span id="glow-value" class="mono-label">100%</span>
-            </div>
-            <input id="glow-range" class="range" type="range" min="0" max="200" value="100" />
-          </div>
-
-          <div class="field">
-            <div class="spread">
-              <span class="field-label">모션 에너지</span>
-              <span id="energy-value" class="mono-label">100%</span>
-            </div>
-            <input id="energy-range" class="range" type="range" min="40" max="180" value="100" />
-          </div>
-
-          <fieldset class="field fieldset">
-            <legend class="field-label">출력 화면비</legend>
-            <label class="checkline">
-              <input type="radio" name="studio-aspect" value="landscape" checked />
-              <span>16:9 · 1920×1080</span>
-            </label>
-            <label class="checkline">
-              <input type="radio" name="studio-aspect" value="portrait" />
-              <span>9:16 · 1080×1920</span>
-            </label>
-          </fieldset>
-
-          <label class="checkline">
-            <input id="auto-preset-toggle" type="checkbox" checked />
-            <span>
-              저장 시 프리셋 자동 등록
-              <br />
-              <span class="micro">현재 설정을 다음 프로젝트에서도 바로 사용합니다.</span>
-            </span>
-          </label>
-
-          <hr class="rule" />
-
-          <h2 class="rail__title">
-            <span class="mono-label">04</span> 출력
-          </h2>
-          <div class="stack stack-sm">
-            <a id="studio-preview-btn" class="btn btn--ghost btn--sm" href="/preview">
-              미리보기 · 렌더링 열기
-            </a>
-            <a id="studio-download-btn" class="btn btn--quiet" href="/preview#export">
-              PNG 시퀀스 내보내기
-            </a>
-            <button id="download-current-logo-btn" type="button" class="btn btn--quiet">
-              현재 로고 다운로드
-            </button>
           </div>
         </aside>
       </div>
