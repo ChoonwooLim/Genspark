@@ -20,6 +20,37 @@ import { Readable } from 'node:stream'
 import { createPool, isSafeId, resolveDatabaseUrl, resolveUploadDir } from './storage.node'
 
 const CHROMIUM = process.env.CHROMIUM_EXECUTABLE_PATH || '/usr/bin/chromium'
+
+/** What each output can carry, and how ffmpeg is asked for it.
+ *
+ *  H.264 in MP4 has no alpha channel at all, so a transparent MP4 is not a
+ *  setting anyone can turn on. VP9 in WebM and ProRes 4444 in MOV both do,
+ *  which is what an editor wants when the intro goes over other footage. */
+const FORMATS: Record<
+  string,
+  { ext: string; mime: string; alpha: boolean; args: (fps: number) => string[] }
+> = {
+  mp4: {
+    ext: 'mp4',
+    mime: 'video/mp4',
+    alpha: false,
+    args: () => ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18', '-preset', 'medium', '-movflags', '+faststart'],
+  },
+  webm: {
+    ext: 'webm',
+    mime: 'video/webm',
+    alpha: true,
+    // auto-alt-ref must be off: VP9's alternate reference frames drop alpha.
+    args: () => ['-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-crf', '24', '-b:v', '0', '-auto-alt-ref', '0', '-row-mt', '1'],
+  },
+  mov: {
+    ext: 'mov',
+    mime: 'video/quicktime',
+    alpha: true,
+    args: () => ['-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le', '-alpha_bits', '8'],
+  },
+  png: { ext: '', mime: 'application/zip', alpha: true, args: () => [] },
+}
 const MAX_FRAMES = 900
 
 const SCHEMA = `
@@ -53,7 +84,7 @@ type Job = {
   height: number
   fps: number
   duration: number
-  format: 'mp4' | 'png'
+  format: string
   transparent: boolean
 }
 
@@ -132,6 +163,16 @@ async function captureFrames(job: Job): Promise<Buffer[]> {
     })
 
     await page.goto(job.url, { waitUntil: 'load', timeout: 30_000 })
+
+    if (job.transparent) {
+      // A prototype paints its own backdrop, so omitBackground alone leaves it
+      // opaque — the page-level fills have to go first. Only the stage and
+      // canvas are cleared; element backgrounds are the artwork itself.
+      await page.addStyleTag({
+        content:
+          'html,body,.stage,.canvas{background:transparent !important;background-image:none !important}',
+      })
+    }
     // Fonts and the logo must be in before the first frame, or frame 0 is bare.
     await page.evaluate(() => (document as any).fonts?.ready).catch(() => {})
 
@@ -172,7 +213,7 @@ async function captureFrames(job: Job): Promise<Buffer[]> {
   }
 }
 
-async function encodeMp4(frames: Buffer[], fps: number, outFile: string) {
+async function encodeVideo(frames: Buffer[], fps: number, format: string, outFile: string) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'plazion-render-'))
   try {
     await Promise.all(
@@ -182,12 +223,7 @@ async function encodeMp4(frames: Buffer[], fps: number, outFile: string) {
       '-y',
       '-framerate', String(fps),
       '-i', path.join(dir, 'f_%05d.png'),
-      '-c:v', 'libx264',
-      // yuv420p and even dimensions are what makes the file play everywhere.
-      '-pix_fmt', 'yuv420p',
-      '-crf', '18',
-      '-preset', 'medium',
-      '-movflags', '+faststart',
+      ...FORMATS[format].args(fps),
       outFile,
     ])
   } finally {
@@ -223,8 +259,8 @@ export async function createRenderApi() {
     const target = path.join(outDir, storedName)
     let size = 0
 
-    if (job.format === 'mp4') {
-      await encodeMp4(frames, job.fps, target)
+    if (job.format !== 'png') {
+      await encodeVideo(frames, job.fps, job.format, target)
       size = (await fs.stat(target)).size
     } else {
       // The sequence is the deliverable, so it is kept as individual frames on
@@ -244,7 +280,11 @@ export async function createRenderApi() {
   }
 
   api.get('/status', (c) =>
-    c.json({ enabled: Boolean(pool && available), chromium: available, formats: ['mp4', 'png'] })
+    c.json({
+      enabled: Boolean(pool && available),
+      chromium: available,
+      formats: Object.entries(FORMATS).map(([id, f]) => ({ id, alpha: f.alpha })),
+    })
   )
 
   api.post('/', async (c) => {
@@ -256,8 +296,10 @@ export async function createRenderApi() {
     const body = await c.req.json().catch(() => null)
     if (!body) return c.json({ error: 'JSON 본문이 필요합니다.' }, 400)
 
-    const format = body.format === 'png' ? 'png' : 'mp4'
-    const transparent = format === 'png' && body.transparent !== false && body.kind !== 'proto'
+    const format = FORMATS[body.format] ? String(body.format) : 'mp4'
+    // Alpha is only offered where the container can hold it. Asked for on a
+    // format that cannot, it would be a switch that silently does nothing.
+    const transparent = FORMATS[format].alpha && body.transparent === true
     const fps = Math.min(Math.max(Number(body.fps) || 30, 1), 60)
     const duration = Math.min(Math.max(Number(body.duration) || 3, 0.2), 30)
     const width = Math.round(Number(body.width) || 1920)
@@ -293,7 +335,7 @@ export async function createRenderApi() {
 
     const id = randomUUID()
     const token = randomBytes(24).toString('hex')
-    const storedName = format === 'mp4' ? `${id}.mp4` : id
+    const storedName = format === 'png' ? id : `${id}.${FORMATS[format].ext}`
     const label = String(body.label || '렌더').slice(0, 200)
 
     await pool.query(
@@ -395,6 +437,8 @@ export async function createRenderApi() {
     if (!filePath.startsWith(outDir + path.sep)) return c.json({ error: 'not_found' }, 404)
     const safeName = row.label.replace(/[^\w.\- ]+/g, '_')
 
+    const spec = FORMATS[row.format] || FORMATS.mp4
+
     if (row.format === 'png') {
       // Zipping is opt-in: the sequence itself is the artifact, and an archive
       // exists only because a browser cannot hand over a folder in one click.
@@ -428,9 +472,9 @@ export async function createRenderApi() {
     }
     return new Response(Readable.toWeb(createReadStream(filePath)) as ReadableStream, {
       headers: {
-        'Content-Type': 'video/mp4',
+        'Content-Type': spec.mime,
         'Content-Length': String(row.byte_size),
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(safeName)}.mp4"`,
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(safeName)}.${spec.ext}"`,
       },
     })
   })

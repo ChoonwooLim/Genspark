@@ -152,3 +152,6 @@
 }
 #render-status[data-type='success'] { color: var(--pale-green); }
 #render-status[data-type='error'] { color: var(--coral); }
+
+.checkline--on-dark { color: rgba(255, 255, 255, 0.8); font-size: 13px; align-items: center; }
+.checkline--on-dark input:disabled + span { opacity: 0.4; }

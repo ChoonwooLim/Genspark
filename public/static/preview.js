@@ -406,7 +406,9 @@
   const renderPanel = document.getElementById('render-panel');
   const renderStatus = document.getElementById('render-status');
   const renderMp4 = document.getElementById('render-mp4');
-  const renderPng = document.getElementById('render-png');
+  const renderAlt = document.getElementById('render-alt');
+  const renderFormat = document.getElementById('render-format');
+  const renderTransparent = document.getElementById('render-transparent');
   const renderFps = document.getElementById('render-fps');
   const renderDuration = document.getElementById('render-duration');
 
@@ -417,12 +419,24 @@
     renderStatus.dataset.type = type;
   };
 
+  // Only some containers can carry alpha; the checkbox follows the format so
+  // it is never a switch that quietly does nothing.
+  const ALPHA_FORMATS = new Set(['png', 'webm', 'mov']);
+
+  function syncTransparentAvailability() {
+    const allowed = ALPHA_FORMATS.has(renderFormat.value);
+    renderTransparent.disabled = !allowed;
+    if (!allowed) renderTransparent.checked = false;
+  }
+
   async function startRender(format) {
     if (renderBusy) return;
     const aspect = currentAspect();
+    const transparent = ALPHA_FORMATS.has(format) && renderTransparent.checked;
 
     const payload = {
       format,
+      transparent,
       fps: Number(renderFps.value) || 30,
       duration: Number(renderDuration.value) || 5,
       width: aspect === 'portrait' ? 1080 : 1920,
@@ -447,8 +461,12 @@
 
     renderBusy = true;
     renderMp4.disabled = true;
-    renderPng.disabled = true;
-    setRenderStatus('렌더 시작…');
+    renderAlt.disabled = true;
+    setRenderStatus(
+      transparent && active.kind === 'proto'
+        ? '렌더 시작… 이 프로토타입은 검정 배경 위 screen 블렌드로 설계돼 있어 투명 배경에서는 발광이 달라 보일 수 있습니다.'
+        : '렌더 시작…'
+    );
 
     try {
       const started = await studioPost('/api/renders', payload);
@@ -476,7 +494,7 @@
     } finally {
       renderBusy = false;
       renderMp4.disabled = false;
-      renderPng.disabled = false;
+      renderAlt.disabled = false;
     }
   }
 
@@ -515,9 +533,11 @@
   renderMp4.addEventListener('click', () =>
     startRender('mp4').catch((e) => setRenderStatus(e.message, 'error'))
   );
-  renderPng.addEventListener('click', () =>
-    startRender('png').catch((e) => setRenderStatus(e.message, 'error'))
+  renderAlt.addEventListener('click', () =>
+    startRender(renderFormat.value).catch((e) => setRenderStatus(e.message, 'error'))
   );
+  renderFormat.addEventListener('change', syncTransparentAvailability);
+  syncTransparentAvailability();
 
   fetch('/api/renders/status')
     .then((r) => r.json())

@@ -457,9 +457,21 @@ export function PreviewPage() {
             <button id="render-mp4" type="button" class="stage-btn stage-btn--solid">
               MP4 렌더링
             </button>
-            <button id="render-png" type="button" class="stage-btn">
-              PNG 시퀀스 렌더링
+            <label class="stage-field">
+              <span class="mono-label">다른 형식</span>
+              <select id="render-format" class="select select--on-dark">
+                <option value="png">PNG 시퀀스 · 투명 가능</option>
+                <option value="webm">WebM · VP9 · 투명 가능</option>
+                <option value="mov">MOV · ProRes 4444 · 투명 가능</option>
+              </select>
+            </label>
+            <button id="render-alt" type="button" class="stage-btn">
+              선택 형식으로 렌더링
             </button>
+            <label class="checkline checkline--on-dark">
+              <input id="render-transparent" type="checkbox" />
+              <span>투명 배경</span>
+            </label>
             <label class="stage-field">
               <span class="mono-label">FPS</span>
               <select id="render-fps" class="select select--on-dark select--slim">
