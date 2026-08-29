@@ -129,7 +129,9 @@
     logoUrl = URL.createObjectURL(blob);
     if (intro) await intro.setLogoSource(logoUrl);
     if (name && !els.projectName.value.trim()) els.projectName.value = name;
-    ready(`${filename} · ${core.formatBytes(blob.size)} · 미리보기에 적용됨`);
+    // Hand the logo to the other pages; a link to /preview is a fresh load.
+    await core.setWorkingLogo(blob, { filename, name: name || null, settings: getSettings() });
+    ready(`${filename} · ${core.formatBytes(blob.size)} · 미리보기·내보내기에 적용됨`);
   }
 
   async function currentBlob() {
@@ -271,10 +273,17 @@
     });
   });
 
-  [els.glow, els.energy].forEach((input) => input.addEventListener('input', pushSettings));
-  document
-    .querySelectorAll('input[name="studio-aspect"]')
-    .forEach((radio) => radio.addEventListener('change', pushSettings));
+  [els.glow, els.energy].forEach((input) => {
+    input.addEventListener('input', pushSettings);
+    // On release, not on every pixel of drag — this writes to IndexedDB.
+    input.addEventListener('change', () => core.setWorkingSettings(getSettings()));
+  });
+  document.querySelectorAll('input[name="studio-aspect"]').forEach((radio) =>
+    radio.addEventListener('change', () => {
+      pushSettings();
+      core.setWorkingSettings(getSettings());
+    })
+  );
 
   els.presetSelect.addEventListener('change', () => {
     const preset = core.state.presets.find((p) => p.id === els.presetSelect.value);
@@ -377,6 +386,7 @@
     els.projectName.value = '';
     els.sourceReady.textContent = '';
     applySettings(core.DEFAULT_PRESET);
+    core.clearWorkingLogo();
     if (intro) intro.setLogoSource(logoUrl);
     say('새 프로젝트를 시작했습니다.');
   });

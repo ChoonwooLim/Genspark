@@ -59,11 +59,13 @@ window.PlazionCore = (function () {
   function openDb() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
-      const request = indexedDB.open('plazion-studio', 1);
+      const request = indexedDB.open('plazion-studio', 2);
       request.onupgradeneeded = () => {
         const db = request.result;
         if (!db.objectStoreNames.contains('logos')) db.createObjectStore('logos', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('presets')) db.createObjectStore('presets', { keyPath: 'id' });
+        // v2: the working logo, so it survives navigation between pages.
+        if (!db.objectStoreNames.contains('session')) db.createObjectStore('session', { keyPath: 'id' });
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -222,6 +224,44 @@ window.PlazionCore = (function () {
     notify();
   }
 
+  /** The logo being worked on, shared across pages.
+   *
+   *  The studio holds it as an object URL, which dies with the page — so a
+   *  plain link to /preview used to land on the default logo. Stashing the
+   *  blob here lets any page pick up where the last one left off, and it
+   *  survives a reload, unlike an in-memory handoff. */
+  async function setWorkingLogo(blob, meta = {}) {
+    try {
+      await idb('session', 'readwrite', (store) =>
+        store.put({ id: 'current', blob, meta, savedAt: Date.now() })
+      );
+    } catch {
+      /* private mode or blocked storage — the page still works, just not across navigations */
+    }
+  }
+
+  async function getWorkingLogo() {
+    try {
+      return (await idb('session', 'readonly', (store) => store.get('current'))) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function setWorkingSettings(settings) {
+    const current = await getWorkingLogo();
+    if (!current) return;
+    await setWorkingLogo(current.blob, { ...current.meta, settings });
+  }
+
+  async function clearWorkingLogo() {
+    try {
+      await idb('session', 'readwrite', (store) => store.delete('current'));
+    } catch {
+      /* nothing to clear */
+    }
+  }
+
   function projectLogoUrl(project) {
     if (project.logoBlob instanceof Blob) {
       if (!project._objectUrl) project._objectUrl = URL.createObjectURL(project.logoBlob);
@@ -256,5 +296,9 @@ window.PlazionCore = (function () {
     deletePreset,
     projectLogoUrl,
     projectIdFromQuery,
+    setWorkingLogo,
+    getWorkingLogo,
+    setWorkingSettings,
+    clearWorkingLogo,
   };
 })();

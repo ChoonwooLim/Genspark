@@ -19,6 +19,7 @@
   const exportStatusNote = document.getElementById('export-status-note');
   const uploadSequenceBtn = document.getElementById('upload-sequence');
   const uploadLabel = document.getElementById('upload-label');
+  const downloadLogo = document.getElementById('download-logo');
 
   let loops = 0;
   let soundEnabled = false;
@@ -386,6 +387,53 @@
       // No backend (Cloudflare Workers build) — leave the UI hidden.
     }
   })();
+
+  /** Adopt whatever the studio was last working on.
+   *
+   *  Navigating here is a fresh page load, so the studio's object URL is gone
+   *  by the time this runs — without this the stage always fell back to the
+   *  bundled PLAZION logo no matter what had been applied next door.
+   *  ?project=<id> takes precedence, so a library row opens that project. */
+  (async function adoptWorkingLogo() {
+    const core = window.PlazionCore;
+    if (!core) return;
+
+    const wantedProject = core.projectIdFromQuery();
+    if (wantedProject) {
+      await core.loadProjects().catch(() => {});
+      const project = core.state.projects.find((p) => p.id === wantedProject);
+      if (project) {
+        const blob =
+          project.logoBlob instanceof Blob
+            ? project.logoBlob
+            : await fetch(core.projectLogoUrl(project)).then((r) => r.blob()).catch(() => null);
+        if (blob) await applyLogo(blob, project.settings, project.name);
+        return;
+      }
+    }
+
+    const working = await core.getWorkingLogo();
+    if (working?.blob) await applyLogo(working.blob, working.meta?.settings, working.meta?.name);
+  })();
+
+  async function applyLogo(blob, settings, name) {
+    const url = URL.createObjectURL(blob);
+    await intro.setLogoSource(url);
+    downloadLogo.href = url;
+    downloadLogo.setAttribute('download', `${name || 'logo'}.png`);
+
+    if (settings) {
+      intro.setVisualSettings({
+        glow: (settings.glow ?? 100) / 100,
+        energy: (settings.energy ?? 100) / 100,
+      });
+      if (settings.aspect && settings.aspect !== intro.aspect) {
+        const button = Array.from(aspectBtns).find((b) => b.getAttribute('data-aspect') === settings.aspect);
+        if (button) button.click();
+      }
+    }
+    if (name) exportStatusNote.textContent = `현재 로고: ${name} · 30fps · 3초 · 투명 PNG 90장`;
+  }
 
   updateMuteUI();
 })();
