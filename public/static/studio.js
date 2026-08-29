@@ -1,237 +1,106 @@
+/* Studio page — pick a logo source, tune the animation, save the project.
+ *
+ * The library moved to its own page, so this file no longer owns the project
+ * list; shared storage and the access-code flow live in core.js. */
 (function () {
-  const app = window.PlazionApp;
-  if (!app) return;
+  const core = window.PlazionCore;
+  const el = (id) => document.getElementById(id);
 
   const els = {
-    newProject: document.getElementById('new-project-btn'),
-    upload: document.getElementById('logo-upload'),
-    dropzone: document.getElementById('logo-dropzone'),
-    sourceModeUpload: document.getElementById('source-mode-upload'),
-    sourceModeAi: document.getElementById('source-mode-ai'),
-    sourceModeImport: document.getElementById('source-mode-import'),
-    uploadPanel: document.getElementById('upload-source-panel'),
-    aiPanel: document.getElementById('ai-source-panel'),
-    importPanel: document.getElementById('import-source-panel'),
-    pasteZone: document.getElementById('genspark-paste-zone'),
-    importUrl: document.getElementById('genspark-import-url'),
-    importButton: document.getElementById('import-genspark-btn'),
-    sourceReady: document.getElementById('source-ready-status'),
-    brandName: document.getElementById('ai-brand-name'),
-    aiPrompt: document.getElementById('ai-logo-prompt'),
-    aiType: document.getElementById('ai-logo-type'),
-    aiPalette: document.getElementById('ai-logo-palette'),
-    aiStyle: document.getElementById('ai-logo-style'),
-    aiOriginality: document.getElementById('ai-logo-originality'),
-    aiAvoid: document.getElementById('ai-logo-avoid'),
-    aiModel: document.getElementById('ai-logo-model'),
-    generate: document.getElementById('generate-logo-btn'),
-    projectName: document.getElementById('project-name'),
-    presetSelect: document.getElementById('preset-select'),
-    deletePreset: document.getElementById('delete-preset-btn'),
-    glow: document.getElementById('glow-range'),
-    glowValue: document.getElementById('glow-value'),
-    energy: document.getElementById('energy-range'),
-    energyValue: document.getElementById('energy-value'),
-    autoPreset: document.getElementById('auto-preset-toggle'),
-    save: document.getElementById('save-project-btn'),
-    status: document.getElementById('studio-status'),
-    storage: document.getElementById('storage-indicator'),
-    preview: document.getElementById('studio-preview-btn'),
-    sequence: document.getElementById('studio-download-btn'),
-    downloadLogo: document.getElementById('download-current-logo-btn'),
-    libraryGrid: document.getElementById('library-grid'),
-    libraryEmpty: document.getElementById('library-empty'),
-    librarySearch: document.getElementById('library-search'),
-    refreshLibrary: document.getElementById('refresh-library-btn'),
-  };
+    status: el('studio-status'),
+    newProject: el('new-project-btn'),
 
-  const DEFAULT_PRESET = {
-    id: 'voxel-default',
-    name: 'Voxel Materialize · 기본',
-    glow: 100,
-    energy: 100,
-    aspect: 'landscape',
-    isDefault: true,
-  };
+    modeUpload: el('source-mode-upload'),
+    modeAi: el('source-mode-ai'),
+    modeImport: el('source-mode-import'),
+    panelUpload: el('upload-source-panel'),
+    panelAi: el('ai-source-panel'),
+    panelImport: el('import-source-panel'),
+    dropzone: el('logo-dropzone'),
+    upload: el('logo-upload'),
+    sourceReady: el('source-ready-status'),
 
-  let currentLogoBlob = null;
-  let currentLogoUrl = '/static/plazion_logo.png';
+    brandName: el('ai-brand-name'),
+    prompt: el('ai-logo-prompt'),
+    type: el('ai-logo-type'),
+    style: el('ai-logo-style'),
+    palette: el('ai-logo-palette'),
+    avoid: el('ai-logo-avoid'),
+    originality: el('ai-logo-originality'),
+    model: el('ai-logo-model'),
+    generate: el('generate-logo-btn'),
+
+    pasteZone: el('genspark-paste-zone'),
+    importUrl: el('genspark-import-url'),
+    importBtn: el('import-genspark-btn'),
+
+    projectName: el('project-name'),
+    presetSelect: el('preset-select'),
+    deletePreset: el('delete-preset-btn'),
+    glow: el('glow-range'),
+    glowValue: el('glow-value'),
+    energy: el('energy-range'),
+    energyValue: el('energy-value'),
+    autoPreset: el('auto-preset-toggle'),
+    save: el('save-project-btn'),
+    downloadLogo: el('download-current-logo-btn'),
+
+    canvas: el('intro-canvas'),
+    canvasWrap: el('canvas-wrap'),
+    loopCount: el('loop-count'),
+  };
+  if (!core || !els.save) return;
+
+  let logoBlob = null;
+  let logoUrl = '/static/plazion_logo.png';
   let sourceConfirmed = false;
-  let currentProjectId = null;
-  let activeSourceMode = 'upload';
-  let projects = [];
-  let presets = [DEFAULT_PRESET];
-  let storageMode = 'local';
-  let dbPromise = null;
+  let projectId = null;
+  let busy = false;
 
-  function uid(prefix) {
-    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-  }
-
-  function openDb() {
-    if (dbPromise) return dbPromise;
-    dbPromise = new Promise((resolve, reject) => {
-      const request = indexedDB.open('plazion-studio', 1);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains('logos')) db.createObjectStore('logos', { keyPath: 'id' });
-        if (!db.objectStoreNames.contains('presets')) db.createObjectStore('presets', { keyPath: 'id' });
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    return dbPromise;
-  }
-
-  async function idbRequest(storeName, mode, operation) {
-    const db = await openDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, mode);
-      const store = tx.objectStore(storeName);
-      const request = operation(store);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  const localStore = {
-    listLogos: () => idbRequest('logos', 'readonly', (store) => store.getAll()),
-    putLogo: (item) => idbRequest('logos', 'readwrite', (store) => store.put(item)),
-    deleteLogo: (id) => idbRequest('logos', 'readwrite', (store) => store.delete(id)),
-    listPresets: () => idbRequest('presets', 'readonly', (store) => store.getAll()),
-    putPreset: (item) => idbRequest('presets', 'readwrite', (store) => store.put(item)),
-    deletePreset: (id) => idbRequest('presets', 'readwrite', (store) => store.delete(id)),
+  const say = (message, type = 'info') => {
+    els.status.textContent = message;
+    els.status.dataset.type = type;
   };
 
-  function showStatus(message, type = 'info') {
-    els.status.textContent = message;
-    els.status.className = `studio-status is-${type}`;
+  const ready = (message) => {
+    sourceConfirmed = true;
+    els.sourceReady.textContent = message;
+    els.sourceReady.dataset.type = 'success';
+  };
+
+  function setBusy(button, on, label) {
+    busy = on;
+    button.disabled = on;
+    if (label) button.dataset.idle = button.dataset.idle || button.textContent;
+    button.textContent = on ? label : button.dataset.idle || button.textContent;
   }
 
-  function setBusy(button, busy, busyText) {
-    if (!button) return;
-    if (busy) {
-      button.dataset.label = button.querySelector('span')?.textContent || '';
-      button.disabled = true;
-      const span = button.querySelector('span');
-      if (span) span.textContent = busyText;
-    } else {
-      button.disabled = false;
-      const span = button.querySelector('span');
-      if (span && button.dataset.label) span.textContent = button.dataset.label;
-    }
-  }
+  // ---- live preview ------------------------------------------------
 
-  function setStorageMode(mode, message) {
-    storageMode = mode;
-    els.storage.className = `storage-indicator is-${mode}`;
-    els.storage.innerHTML = `<i class="fa-solid fa-circle"></i> ${message}`;
-  }
-
-  function setSourceMode(mode) {
-    activeSourceMode = mode;
-    const modes = {
-      upload: [els.sourceModeUpload, els.uploadPanel],
-      ai: [els.sourceModeAi, els.aiPanel],
-      import: [els.sourceModeImport, els.importPanel],
-    };
-    Object.entries(modes).forEach(([name, [button, panel]]) => {
-      const active = name === mode;
-      button.classList.toggle('is-active', active);
-      button.setAttribute('aria-selected', String(active));
-      panel.hidden = !active;
+  let intro = null;
+  if (els.canvas && window.PlazionIntro) {
+    let loops = 0;
+    intro = new window.PlazionIntro(els.canvas, {
+      logoSrc: logoUrl,
+      aspect: 'landscape',
+      onLoop: () => {
+        loops += 1;
+        els.loopCount.textContent = String(loops);
+      },
     });
   }
 
-  function setSourceReady(message, mode) {
-    els.sourceReady.className = `source-ready-status is-ready is-${mode}`;
-    els.sourceReady.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${message}`;
-  }
-
-  function resetSourceReady() {
-    els.sourceReady.className = 'source-ready-status';
-    els.sourceReady.innerHTML = '<i class="fa-solid fa-circle-info"></i> 아직 새 로고를 선택하지 않았습니다. 위 세 방식 중 하나를 완료하세요.';
-  }
-
-  async function fetchJson(url, options = {}) {
-    const response = await fetch(url, options);
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || `요청 실패 (${response.status})`);
-    return body;
-  }
-
-  // Library writes reuse the same access code as the AI routes (the server gates
-  // POST/DELETE so a public visitor cannot overwrite or wipe the library).
-  // Reads stay unauthenticated so the gallery renders for everyone.
-  function studioHeaders(extra) {
-    const token = sessionStorage.getItem('plazionStudioToken') || '';
-    return token ? { ...extra, 'X-Studio-Token': token } : { ...extra };
-  }
-
-  // Retries once after prompting, so a first save in a fresh session does not
-  // silently fall back to IndexedDB just because the code was never entered.
-  async function studioWrite(url, options) {
-    const send = () => fetch(url, { ...options, headers: studioHeaders(options.headers) });
-    let response = await send();
-    if (response.status === 401) {
-      const body = await response.json().catch(() => ({}));
-      if (body.code === 'STUDIO_AUTH_REQUIRED') {
-        const token = window.prompt('작업실 접근 코드를 입력하세요.') || '';
-        if (!token) throw new Error('접근 코드가 없어 서버에 저장하지 못했습니다.');
-        sessionStorage.setItem('plazionStudioToken', token);
-        response = await send();
-      }
+  function pushSettings() {
+    const settings = getSettings();
+    els.glowValue.textContent = `${settings.glow}%`;
+    els.energyValue.textContent = `${settings.energy}%`;
+    if (!intro) return;
+    intro.setVisualSettings({ glow: settings.glow / 100, energy: settings.energy / 100 });
+    if (intro.aspect !== settings.aspect) {
+      intro.setAspect(settings.aspect);
+      els.canvasWrap.classList.toggle('canvas-wrap--landscape', settings.aspect === 'landscape');
+      els.canvasWrap.classList.toggle('canvas-wrap--portrait', settings.aspect === 'portrait');
     }
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      if (response.status === 401) sessionStorage.removeItem('plazionStudioToken');
-      throw new Error(body.error || `요청 실패 (${response.status})`);
-    }
-    return body;
-  }
-
-  function normalizedRemoteList(body, key) {
-    const value = Array.isArray(body) ? body : body[key] || body.items || [];
-    return Array.isArray(value) ? value : [];
-  }
-
-  async function loadProjects() {
-    try {
-      const body = await fetchJson('/api/logos');
-      if (body.storage === 'unconfigured') throw new Error('Storage service is not configured yet.');
-      projects = normalizedRemoteList(body, 'logos').map((item) => ({ ...item, source: 'server' }));
-      setStorageMode('server', 'Orbitron 저장소 연결됨');
-    } catch {
-      projects = (await localStore.listLogos()).map((item) => ({ ...item, source: 'local' }));
-      setStorageMode('local', '브라우저 임시 저장 모드');
-    }
-    projects.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
-    renderLibrary();
-  }
-
-  async function loadPresets() {
-    let saved = [];
-    try {
-      const body = await fetchJson('/api/presets');
-      if (body.storage === 'unconfigured') throw new Error('Storage service is not configured yet.');
-      saved = normalizedRemoteList(body, 'presets');
-    } catch {
-      saved = await localStore.listPresets();
-    }
-    presets = [DEFAULT_PRESET, ...saved.filter((item) => item.id !== DEFAULT_PRESET.id)];
-    renderPresets();
-  }
-
-  function renderPresets(selectedId) {
-    els.presetSelect.innerHTML = '';
-    presets.forEach((preset) => {
-      const option = document.createElement('option');
-      option.value = preset.id;
-      option.textContent = preset.name;
-      els.presetSelect.appendChild(option);
-    });
-    if (selectedId && presets.some((item) => item.id === selectedId)) els.presetSelect.value = selectedId;
-    els.deletePreset.disabled = els.presetSelect.value === DEFAULT_PRESET.id;
   }
 
   function getSettings() {
@@ -242,446 +111,326 @@
     };
   }
 
-  function applySettings(settings) {
-    els.glow.value = String(settings.glow ?? 100);
-    els.energy.value = String(settings.energy ?? 100);
-    els.glowValue.textContent = `${els.glow.value}%`;
-    els.energyValue.textContent = `${els.energy.value}%`;
-    const radio = document.querySelector(`input[name="studio-aspect"][value="${settings.aspect || 'landscape'}"]`);
-    if (radio) radio.checked = true;
-    app.intro.setVisualSettings({ glow: Number(els.glow.value) / 100, energy: Number(els.energy.value) / 100 });
-    app.setAspect(settings.aspect || 'landscape');
+  function applySettings(settings = {}) {
+    if (settings.glow != null) els.glow.value = settings.glow;
+    if (settings.energy != null) els.energy.value = settings.energy;
+    if (settings.aspect) {
+      const radio = document.querySelector(`input[name="studio-aspect"][value="${settings.aspect}"]`);
+      if (radio) radio.checked = true;
+    }
+    pushSettings();
   }
+
+  // ---- logo source -------------------------------------------------
 
   async function setLogo(blob, filename, name) {
-    if (!blob || !blob.type.startsWith('image/')) throw new Error('이미지 파일을 선택해 주세요.');
-    if (blob.size > 20 * 1024 * 1024) throw new Error('로고 파일은 20MB 이하만 사용할 수 있습니다.');
-    const previousUrl = currentLogoUrl;
-    currentLogoBlob = blob;
-    currentLogoUrl = URL.createObjectURL(blob);
-    await app.intro.setLogoSource(currentLogoUrl);
-    sourceConfirmed = true;
-    if (previousUrl.startsWith('blob:')) URL.revokeObjectURL(previousUrl);
-    els.dropzone.classList.add('has-file');
-    els.dropzone.querySelector('strong').textContent = filename || '로고 준비 완료';
-    els.dropzone.querySelector('span').textContent = `${Math.max(1, Math.round(blob.size / 1024))} KB · 미리보기에 적용됨`;
+    logoBlob = blob;
+    if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl);
+    logoUrl = URL.createObjectURL(blob);
+    if (intro) await intro.setLogoSource(logoUrl);
     if (name && !els.projectName.value.trim()) els.projectName.value = name;
-    setSourceReady(`${filename || '새 로고'}가 미리보기 소스로 확정되었습니다.`, 'logo');
-    showStatus('새 로고가 미리보기에 적용되었습니다. 다음으로 애니메이션 설정을 조정하세요.', 'success');
+    ready(`${filename} · ${core.formatBytes(blob.size)} · 미리보기에 적용됨`);
   }
 
-  async function ensureCurrentBlob() {
-    if (currentLogoBlob) return currentLogoBlob;
-    const response = await fetch(currentLogoUrl);
+  async function currentBlob() {
+    if (logoBlob) return logoBlob;
+    const response = await fetch(logoUrl);
     if (!response.ok) throw new Error('현재 로고 파일을 가져오지 못했습니다.');
-    currentLogoBlob = await response.blob();
-    return currentLogoBlob;
+    logoBlob = await response.blob();
+    return logoBlob;
   }
 
-  async function savePreset(projectName, settings, projectId) {
-    const preset = {
-      id: `preset_${projectId}`,
-      name: `${projectName} · 자동 프리셋`,
-      ...settings,
-      projectId,
-      updatedAt: new Date().toISOString(),
+  function setMode(mode) {
+    const map = {
+      upload: [els.modeUpload, els.panelUpload],
+      ai: [els.modeAi, els.panelAi],
+      import: [els.modeImport, els.panelImport],
     };
-    await localStore.putPreset(preset);
-    try {
-      await studioWrite('/api/presets', {
+    Object.entries(map).forEach(([key, [button, panel]]) => {
+      button.classList.toggle('is-active', key === mode);
+      button.setAttribute('aria-selected', key === mode ? 'true' : 'false');
+      panel.hidden = key !== mode;
+    });
+  }
+
+  // ---- AI generation ----------------------------------------------
+
+  async function callAi(url, payload) {
+    const send = () => {
+      const token = sessionStorage.getItem('plazionStudioToken') || '';
+      return fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(preset),
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Studio-Token': token } : {}) },
+        body: JSON.stringify(payload),
       });
-    } catch {
-      // The local copy remains immediately usable while the backend is being wired.
+    };
+    let response = await send();
+    if (response.status === 401) {
+      const body = await response.json().catch(() => ({}));
+      if (body.code === 'STUDIO_AUTH_REQUIRED') {
+        const token = window.prompt('작업실 접근 코드를 입력하세요.') || '';
+        if (!token) throw new Error('접근 코드가 없어 취소되었습니다.');
+        sessionStorage.setItem('plazionStudioToken', token);
+        response = await send();
+      }
     }
-    presets = [DEFAULT_PRESET, ...presets.filter((item) => item.id !== preset.id && item.id !== DEFAULT_PRESET.id), preset];
-    renderPresets(preset.id);
+    if (!response.ok) {
+      if (response.status === 401) sessionStorage.removeItem('plazionStudioToken');
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || `요청 실패 (${response.status})`);
+    }
+    return response;
   }
 
-  async function saveProject() {
+  function buildPrompt() {
+    return [
+      els.prompt.value.trim(),
+      `로고 형태: ${els.type.options[els.type.selectedIndex].text}.`,
+      els.palette.value.trim() ? `컬러: ${els.palette.value.trim()}.` : '',
+      els.avoid.value.trim() ? `피할 요소: ${els.avoid.value.trim()}.` : '',
+      `독창성 ${els.originality.value}/100.`,
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  // ---- save --------------------------------------------------------
+
+  async function save() {
+    if (!sourceConfirmed) throw new Error('먼저 로고를 확정해 주세요.');
     const name = els.projectName.value.trim();
-    if (!sourceConfirmed) throw new Error('먼저 1단계에서 업로드, AI 생성 또는 Genspark 가져오기로 새 로고를 확정해 주세요.');
     if (!name) throw new Error('프로젝트 이름을 입력해 주세요.');
-    const blob = await ensureCurrentBlob();
+
+    const blob = await currentBlob();
     const settings = getSettings();
-    const id = currentProjectId || uid('logo');
+    const id = projectId || core.uid('logo');
+    const existing = core.state.projects.find((p) => p.id === id);
     const now = new Date().toISOString();
-    const metadata = {
-      id,
-      name,
-      settings,
-      presetId: els.presetSelect.value,
-      autoRegisterPreset: els.autoPreset.checked,
-      frameRate: 30,
-      duration: 3,
-      createdAt: projects.find((item) => item.id === id)?.createdAt || now,
-      updatedAt: now,
-    };
 
-    let savedProject = null;
-    try {
-      const form = new FormData();
-      form.append('metadata', JSON.stringify(metadata));
-      form.append('logo', blob, `${id}.png`);
-      const body = await studioWrite('/api/logos', { method: 'POST', body: form });
-      savedProject = body.logo || body.project || body;
-      setStorageMode('server', 'Orbitron 저장소 연결됨');
-    } catch {
-      savedProject = { ...metadata, logoBlob: blob, source: 'local' };
-      await localStore.putLogo(savedProject);
-      setStorageMode('local', '브라우저 임시 저장 모드');
-    }
-
-    currentProjectId = savedProject.id || id;
-    if (els.autoPreset.checked) await savePreset(name, settings, currentProjectId);
-    await loadProjects();
-    showStatus(`“${name}” 프로젝트와 설정을 저장했습니다.`, 'success');
-  }
-
-  function projectLogoUrl(project) {
-    if (project.logoBlob instanceof Blob) {
-      if (!project._objectUrl) project._objectUrl = URL.createObjectURL(project.logoBlob);
-      return project._objectUrl;
-    }
-    return project.logoUrl || project.originalUrl || project.thumbnailUrl || '/static/plazion_logo.png';
-  }
-
-  function escapeHtml(value) {
-    return String(value || '').replace(/[&<>'"]/g, (char) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
-    })[char]);
-  }
-
-  function renderLibrary() {
-    const query = els.librarySearch.value.trim().toLowerCase();
-    const filtered = projects.filter((item) => String(item.name || '').toLowerCase().includes(query));
-    els.libraryGrid.innerHTML = filtered.map((project) => {
-      const settings = project.settings || {};
-      const date = project.updatedAt || project.createdAt;
-      const dateLabel = date ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(new Date(date)) : '방금 전';
-      return `<article class="library-card" data-project-id="${escapeHtml(project.id)}">
-        <button class="library-thumb" type="button" data-action="open" aria-label="${escapeHtml(project.name)} 열기">
-          <img src="${escapeHtml(projectLogoUrl(project))}" alt="${escapeHtml(project.name)} 로고" />
-          <span><i class="fa-solid fa-play"></i></span>
-        </button>
-        <div class="library-card__body">
-          <div class="library-card__title"><div><h3>${escapeHtml(project.name)}</h3><p>${settings.aspect === 'portrait' ? '9:16' : '16:9'} · 30fps · Voxel</p></div><span class="source-badge is-${project.source || 'server'}">${project.source === 'local' ? 'LOCAL' : 'ORBITRON'}</span></div>
-          <div class="library-card__meta"><span>${dateLabel}</span><span>${Math.round((settings.glow ?? 100))}% glow</span></div>
-          <div class="library-card__actions">
-            <button type="button" data-action="open"><i class="fa-solid fa-pen"></i> 불러오기</button>
-            <button type="button" data-action="logo"><i class="fa-solid fa-download"></i> 원본</button>
-            <button type="button" data-action="sequence"><i class="fa-solid fa-layer-group"></i> 시퀀스</button>
-            <button type="button" class="danger" data-action="delete" aria-label="삭제"><i class="fa-solid fa-trash"></i></button>
-          </div>
-        </div>
-      </article>`;
-    }).join('');
-    els.libraryEmpty.hidden = filtered.length > 0;
-  }
-
-  async function loadProject(project) {
-    currentProjectId = project.id;
-    els.projectName.value = project.name || '로고 프로젝트';
-    const source = project.logoBlob instanceof Blob ? project.logoBlob : await fetch(projectLogoUrl(project)).then((res) => {
-      if (!res.ok) throw new Error('저장된 로고를 불러오지 못했습니다.');
-      return res.blob();
-    });
-    await setLogo(source, `${project.name}.png`);
-    applySettings(project.settings || DEFAULT_PRESET);
-    const preset = presets.find((item) => item.projectId === project.id);
-    if (preset) els.presetSelect.value = preset.id;
-    document.getElementById('stage-section').scrollIntoView({ behavior: 'smooth' });
-    showStatus(`“${project.name}” 프로젝트를 불러왔습니다.`, 'success');
-  }
-
-  async function downloadProjectLogo(project) {
-    const blob = project.logoBlob instanceof Blob ? project.logoBlob : await fetch(projectLogoUrl(project)).then((res) => res.blob());
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `${String(project.name || 'logo').replace(/[^a-zA-Z0-9가-힣_-]+/g, '_')}.png`;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
-  async function deleteProject(project) {
-    if (!window.confirm(`“${project.name}” 프로젝트를 삭제할까요?`)) return;
-    try {
-      await studioWrite(`/api/logos/${encodeURIComponent(project.id)}`, { method: 'DELETE' });
-    } catch {
-      await localStore.deleteLogo(project.id);
-    }
-    projects = projects.filter((item) => item.id !== project.id);
-    renderLibrary();
-    showStatus('프로젝트를 삭제했습니다.', 'success');
-  }
-
-  async function applyPastedGensparkImage(file) {
-    if (!file?.type?.startsWith('image/')) throw new Error('클립보드에서 이미지 데이터를 찾지 못했습니다. Genspark 결과 이미지를 먼저 복사해 주세요.');
-    await setLogo(file, `genspark-pasted-${new Date().toISOString().slice(0, 10)}.png`, 'Genspark Imported Logo');
-    if (!els.projectName.value.trim() || els.projectName.value === '새 로고 프로젝트' || els.projectName.value === 'PLAZION VFX Intro') {
-      els.projectName.value = 'Genspark Logo VFX Intro';
-    }
-    setSourceReady('클립보드의 Genspark 결과 이미지가 현재 로고로 적용되었습니다.', 'import');
-    showStatus('Genspark 결과를 붙여 넣었습니다. 2단계 설정을 조정한 뒤 프로젝트를 저장하세요.', 'success');
-  }
-
-  async function importGensparkResult() {
-    const sourceUrl = els.importUrl.value.trim();
-    if (!sourceUrl) throw new Error('Genspark 결과 이미지 주소를 붙여 넣어 주세요.');
-
-    const requestImport = (accessToken) => fetch('/api/ai/import-genspark-image', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(accessToken ? { 'X-Studio-Token': accessToken } : {}),
+    const saved = await core.saveProject(
+      {
+        id,
+        name,
+        settings,
+        presetId: els.presetSelect.value,
+        autoRegisterPreset: els.autoPreset.checked,
+        frameRate: 30,
+        duration: 3,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
       },
-      body: JSON.stringify({ url: sourceUrl }),
-    });
+      blob
+    );
 
-    let accessToken = sessionStorage.getItem('plazionStudioToken') || '';
-    let response = await requestImport(accessToken);
-    if (response.status === 401) {
-      const authBody = await response.json().catch(() => ({}));
-      if (authBody.code === 'STUDIO_AUTH_REQUIRED') {
-        accessToken = window.prompt('Genspark 결과 가져오기 접근 코드를 입력하세요.') || '';
-        if (!accessToken) throw new Error('결과 가져오기가 취소되었습니다.');
-        sessionStorage.setItem('plazionStudioToken', accessToken);
-        response = await requestImport(accessToken);
-      }
+    projectId = saved.id || id;
+    if (els.autoPreset.checked) {
+      await core.savePreset({
+        id: `preset_${projectId}`,
+        name: `${name} · 자동 프리셋`,
+        ...settings,
+        projectId,
+        updatedAt: now,
+      });
+      renderPresets(`preset_${projectId}`);
     }
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      if (response.status === 401) sessionStorage.removeItem('plazionStudioToken');
-      throw new Error(body.error || 'Genspark 결과를 가져오지 못했습니다.');
-    }
-
-    const blob = await response.blob();
-    const extensionByType = {
-      'image/jpeg': 'jpg',
-      'image/png': 'png',
-      'image/svg+xml': 'svg',
-      'image/webp': 'webp',
-      'image/gif': 'gif',
-      'image/vnd.microsoft.icon': 'ico',
-      'image/x-icon': 'ico',
-    };
-    const extension = extensionByType[blob.type] || 'img';
-    const filename = `genspark-import-${new Date().toISOString().slice(0, 10)}.${extension}`;
-    await setLogo(blob, filename, 'Genspark Imported Logo');
-    if (!els.projectName.value.trim() || els.projectName.value === '새 로고 프로젝트' || els.projectName.value === 'PLAZION VFX Intro') {
-      els.projectName.value = 'Genspark Logo VFX Intro';
-    }
-    setSourceReady('Genspark 내부 UI에서 만든 결과가 현재 로고로 적용되었습니다.', 'import');
-    showStatus('Genspark 결과를 가져왔습니다. 2단계 설정을 조정한 뒤 프로젝트를 저장하세요.', 'success');
+    say(`“${name}” 저장 완료 · ${core.state.storageMode === 'server' ? 'Orbitron 서버' : '브라우저 임시 저장'}`, 'success');
   }
 
-  async function runGensparkImport() {
-    setBusy(els.importButton, true, 'Genspark 결과 가져오는 중…');
-    showStatus('Genspark 결과 이미지를 확인하고 있습니다.', 'info');
-    try {
-      await importGensparkResult();
-    } catch (error) {
-      showStatus(error.message, 'error');
-    } finally {
-      setBusy(els.importButton, false);
-    }
+  // ---- presets -----------------------------------------------------
+
+  function renderPresets(selectedId) {
+    els.presetSelect.replaceChildren(
+      ...core.state.presets.map((preset) => {
+        const option = document.createElement('option');
+        option.value = preset.id;
+        option.textContent = preset.name;
+        if (preset.id === selectedId) option.selected = true;
+        return option;
+      })
+    );
   }
 
-  async function generateLogo() {
-    const brandName = els.brandName.value.trim();
-    const prompt = els.aiPrompt.value.trim();
-    if (!brandName) throw new Error('새 브랜드 이름을 입력해 주세요. 기존 PLAZION과 다른 이름을 권장합니다.');
-    const payload = {
-      brandName,
-      prompt,
-      logoType: els.aiType.value,
-      palette: els.aiPalette.value,
-      style: els.aiStyle.value,
-      originality: els.aiOriginality.value,
-      avoid: els.aiAvoid.value.trim(),
-      model: els.aiModel.value,
-    };
+  // ---- wiring ------------------------------------------------------
 
-    const requestGeneration = (accessToken) => fetch('/api/ai/generate-logo', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(accessToken ? { 'X-Studio-Token': accessToken } : {}),
-      },
-      body: JSON.stringify(payload),
-    });
+  els.modeUpload.addEventListener('click', () => setMode('upload'));
+  els.modeAi.addEventListener('click', () => setMode('ai'));
+  els.modeImport.addEventListener('click', () => setMode('import'));
 
-    let accessToken = sessionStorage.getItem('plazionStudioToken') || '';
-    let response = await requestGeneration(accessToken);
-    if (response.status === 401) {
-      const authBody = await response.json().catch(() => ({}));
-      if (authBody.code === 'STUDIO_AUTH_REQUIRED') {
-        accessToken = window.prompt('AI 생성 접근 코드를 입력하세요.') || '';
-        if (!accessToken) throw new Error('AI 생성이 취소되었습니다.');
-        sessionStorage.setItem('plazionStudioToken', accessToken);
-        response = await requestGeneration(accessToken);
-      }
-    }
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      if (response.status === 401) sessionStorage.removeItem('plazionStudioToken');
-      throw new Error(body.setup || body.error || 'AI 로고 생성에 실패했습니다.');
-    }
-    const blob = await response.blob();
-    await setLogo(blob, `${brandName}-ai-logo.png`, brandName);
-    els.projectName.value = `${brandName} VFX Intro`;
-    setSourceReady(`“${brandName}” AI 시안이 새 로고로 확정되었습니다. 마음에 들지 않으면 다시 생성하세요.`, 'ai');
-    showStatus('새 AI 로고가 미리보기에 적용되었습니다. 이제 2단계 애니메이션 설정으로 이동하세요.', 'success');
-  }
-
-  els.newProject.addEventListener('click', async () => {
-    currentProjectId = null;
-    sourceConfirmed = false;
-    if (currentLogoUrl.startsWith('blob:')) URL.revokeObjectURL(currentLogoUrl);
-    currentLogoBlob = null;
-    currentLogoUrl = '/static/plazion_logo.png';
-    await app.intro.setLogoSource(currentLogoUrl);
-    els.projectName.value = '새 로고 프로젝트';
-    els.brandName.value = '';
-    els.aiPrompt.value = '';
-    els.aiAvoid.value = '';
-    els.aiType.selectedIndex = 0;
-    els.aiPalette.selectedIndex = 0;
-    els.aiStyle.selectedIndex = 0;
-    els.aiOriginality.value = 'bold';
-    els.importUrl.value = '';
-    els.presetSelect.value = DEFAULT_PRESET.id;
-    applySettings(DEFAULT_PRESET);
-    setSourceMode('upload');
-    resetSourceReady();
-    els.dropzone.classList.remove('has-file');
-    els.dropzone.querySelector('strong').textContent = '로고 파일을 놓거나 선택';
-    els.dropzone.querySelector('span').textContent = 'PNG · SVG · WEBP · JPG / 투명 PNG 권장';
-    document.getElementById('workspace-section').scrollIntoView({ behavior: 'smooth' });
-    showStatus('새 프로젝트가 준비되었습니다. 업로드, AI 생성 또는 Genspark 가져오기로 로고를 선택하세요.', 'info');
-  });
-
-  els.sourceModeUpload.addEventListener('click', () => setSourceMode('upload'));
-  els.sourceModeAi.addEventListener('click', () => setSourceMode('ai'));
-  els.sourceModeImport.addEventListener('click', () => setSourceMode('import'));
-  els.importButton.addEventListener('click', runGensparkImport);
-  els.importUrl.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      runGensparkImport();
-    }
-  });
-  els.pasteZone.addEventListener('click', () => els.pasteZone.focus());
-  window.addEventListener('paste', (event) => {
-    if (activeSourceMode !== 'import') return;
-    const imageItem = Array.from(event.clipboardData?.items || []).find((item) => item.type.startsWith('image/'));
-    const file = imageItem?.getAsFile();
-    if (!file) return;
-    event.preventDefault();
-    applyPastedGensparkImage(file).catch((error) => showStatus(error.message, 'error'));
-  });
-
-  els.upload.addEventListener('change', () => {
+  els.upload.addEventListener('change', async () => {
     const file = els.upload.files?.[0];
-    if (file) setLogo(file, file.name, file.name.replace(/\.[^.]+$/, '')).catch((error) => showStatus(error.message, 'error'));
-  });
-  ['dragenter', 'dragover'].forEach((eventName) => els.dropzone.addEventListener(eventName, (event) => {
-    event.preventDefault();
-    els.dropzone.classList.add('is-dragging');
-  }));
-  ['dragleave', 'drop'].forEach((eventName) => els.dropzone.addEventListener(eventName, (event) => {
-    event.preventDefault();
-    els.dropzone.classList.remove('is-dragging');
-  }));
-  els.dropzone.addEventListener('drop', (event) => {
-    const file = event.dataTransfer?.files?.[0];
-    if (file) setLogo(file, file.name, file.name.replace(/\.[^.]+$/, '')).catch((error) => showStatus(error.message, 'error'));
+    if (file) await setLogo(file, file.name, file.name.replace(/\.[^.]+$/, ''));
   });
 
-  els.glow.addEventListener('input', () => {
-    els.glowValue.textContent = `${els.glow.value}%`;
-    app.intro.setVisualSettings({ glow: Number(els.glow.value) / 100, energy: Number(els.energy.value) / 100 });
+  ['dragover', 'dragleave', 'drop'].forEach((type) => {
+    els.dropzone.addEventListener(type, (event) => {
+      event.preventDefault();
+      els.dropzone.classList.toggle('is-over', type === 'dragover');
+      if (type !== 'drop') return;
+      const file = event.dataTransfer?.files?.[0];
+      if (file?.type?.startsWith('image/')) setLogo(file, file.name, file.name.replace(/\.[^.]+$/, ''));
+    });
   });
-  els.energy.addEventListener('input', () => {
-    els.energyValue.textContent = `${els.energy.value}%`;
-    app.intro.setVisualSettings({ glow: Number(els.glow.value) / 100, energy: Number(els.energy.value) / 100 });
-  });
-  document.querySelectorAll('input[name="studio-aspect"]').forEach((radio) => radio.addEventListener('change', () => app.setAspect(radio.value)));
-  window.addEventListener('plazion:aspect-change', (event) => {
-    const radio = document.querySelector(`input[name="studio-aspect"][value="${event.detail.aspect}"]`);
-    if (radio) radio.checked = true;
-  });
+
+  [els.glow, els.energy].forEach((input) => input.addEventListener('input', pushSettings));
+  document
+    .querySelectorAll('input[name="studio-aspect"]')
+    .forEach((radio) => radio.addEventListener('change', pushSettings));
+
   els.presetSelect.addEventListener('change', () => {
-    const preset = presets.find((item) => item.id === els.presetSelect.value);
+    const preset = core.state.presets.find((p) => p.id === els.presetSelect.value);
     if (preset) applySettings(preset);
-    els.deletePreset.disabled = !preset || preset.isDefault;
   });
+
   els.deletePreset.addEventListener('click', async () => {
-    const preset = presets.find((item) => item.id === els.presetSelect.value);
-    if (!preset || preset.isDefault) return;
-    try { await studioWrite(`/api/presets/${encodeURIComponent(preset.id)}`, { method: 'DELETE' }); } catch { await localStore.deletePreset(preset.id); }
-    presets = presets.filter((item) => item.id !== preset.id);
-    renderPresets(DEFAULT_PRESET.id);
-    applySettings(DEFAULT_PRESET);
+    const preset = core.state.presets.find((p) => p.id === els.presetSelect.value);
+    if (!preset || preset.isDefault) {
+      say('기본 프리셋은 삭제할 수 없습니다.', 'error');
+      return;
+    }
+    await core.deletePreset(preset.id);
+    renderPresets(core.DEFAULT_PRESET.id);
+    say(`“${preset.name}” 프리셋을 삭제했습니다.`, 'success');
   });
 
   els.generate.addEventListener('click', async () => {
-    setBusy(els.generate, true, 'Genspark가 로고 생성 중…');
-    showStatus('Genspark AI에 로고 생성을 요청했습니다. 잠시만 기다려 주세요.', 'info');
-    try { await generateLogo(); } catch (error) { showStatus(error.message, 'error'); } finally { setBusy(els.generate, false); }
-  });
-  els.save.addEventListener('click', async () => {
-    setBusy(els.save, true, '프로젝트 저장 중…');
-    try { await saveProject(); } catch (error) { showStatus(error.message, 'error'); } finally { setBusy(els.save, false); }
-  });
-  els.preview.addEventListener('click', () => {
-    app.restart();
-    document.getElementById('stage-section').scrollIntoView({ behavior: 'smooth' });
-  });
-  els.sequence.addEventListener('click', () => {
-    if (!sourceConfirmed) return showStatus('먼저 1단계에서 사용할 새 로고를 확정해 주세요.', 'error');
-    app.exportSequence();
-  });
-  els.downloadLogo.addEventListener('click', async () => {
-    if (!sourceConfirmed) return showStatus('먼저 1단계에서 사용할 새 로고를 확정해 주세요.', 'error');
-    try { await downloadProjectLogo({ name: els.projectName.value || 'logo', logoBlob: await ensureCurrentBlob() }); } catch (error) { showStatus(error.message, 'error'); }
-  });
-  els.librarySearch.addEventListener('input', renderLibrary);
-  els.refreshLibrary.addEventListener('click', loadProjects);
-  els.libraryGrid.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-action]');
-    const card = event.target.closest('[data-project-id]');
-    if (!button || !card) return;
-    const project = projects.find((item) => item.id === card.dataset.projectId);
-    if (!project) return;
+    if (busy) return;
+    if (els.prompt.value.trim().length < 10) {
+      say('로고 설명을 조금 더 자세히 적어 주세요.', 'error');
+      return;
+    }
+    setBusy(els.generate, true, '생성 중…');
+    say('Genspark AI로 로고를 생성하는 중… 최대 1분 정도 걸립니다.');
     try {
-      if (button.dataset.action === 'open') await loadProject(project);
-      if (button.dataset.action === 'logo') await downloadProjectLogo(project);
-      if (button.dataset.action === 'sequence') { await loadProject(project); app.exportSequence(); }
-      if (button.dataset.action === 'delete') await deleteProject(project);
-    } catch (error) { showStatus(error.message, 'error'); }
+      const response = await callAi('/api/ai/generate-logo', {
+        prompt: buildPrompt(),
+        brandName: els.brandName.value.trim(),
+        style: els.style.value,
+        model: els.model.value,
+      });
+      const blob = await response.blob();
+      await setLogo(blob, 'genspark-logo.png', els.brandName.value.trim());
+      say('생성한 로고를 미리보기에 적용했습니다.', 'success');
+    } catch (error) {
+      say(error.message, 'error');
+    } finally {
+      setBusy(els.generate, false);
+    }
   });
 
-  Promise.all([loadProjects(), loadPresets()]).catch(() => setStorageMode('local', '브라우저 임시 저장 모드'));
+  els.importBtn.addEventListener('click', async () => {
+    if (busy) return;
+    const url = els.importUrl.value.trim();
+    if (!url) {
+      say('Genspark 이미지 주소를 입력해 주세요.', 'error');
+      return;
+    }
+    setBusy(els.importBtn, true, '가져오는 중…');
+    try {
+      const response = await callAi('/api/ai/import-genspark-image', { url });
+      const blob = await response.blob();
+      await setLogo(blob, 'genspark-import.png', els.brandName.value.trim());
+      say('Genspark 결과를 가져왔습니다.', 'success');
+    } catch (error) {
+      say(error.message, 'error');
+    } finally {
+      setBusy(els.importBtn, false);
+    }
+  });
 
-  // Minimal surface for handoff.js, which lives in its own file so the two
-  // panels can be edited independently.
-  window.PlazionStudio = {
-    setLogo,
-    applySettings,
-    setProjectName(name) {
-      els.projectName.value = String(name || '').slice(0, 120);
-    },
-  };
+  els.pasteZone.addEventListener('paste', async (event) => {
+    const file = Array.from(event.clipboardData?.files || [])[0];
+    if (!file?.type?.startsWith('image/')) {
+      say('클립보드에서 이미지를 찾지 못했습니다.', 'error');
+      return;
+    }
+    await setLogo(file, file.name || 'pasted.png', els.brandName.value.trim());
+    say('붙여넣은 이미지를 적용했습니다.', 'success');
+  });
 
-  const importFromQuery = new URLSearchParams(window.location.search).get('genspark_image');
-  if (importFromQuery) {
-    setSourceMode('import');
-    els.importUrl.value = importFromQuery;
-    window.history.replaceState({}, '', `${window.location.pathname}#workspace-section`);
-    runGensparkImport();
+  els.save.addEventListener('click', async () => {
+    if (busy) return;
+    setBusy(els.save, true, '저장 중…');
+    try {
+      await save();
+    } catch (error) {
+      say(error.message, 'error');
+    } finally {
+      setBusy(els.save, false);
+    }
+  });
+
+  els.downloadLogo.addEventListener('click', async () => {
+    const blob = await currentBlob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${els.projectName.value.trim() || 'plazion-logo'}.png`;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  els.newProject.addEventListener('click', () => {
+    projectId = null;
+    logoBlob = null;
+    logoUrl = '/static/plazion_logo.png';
+    sourceConfirmed = false;
+    els.projectName.value = '';
+    els.sourceReady.textContent = '';
+    applySettings(core.DEFAULT_PRESET);
+    if (intro) intro.setLogoSource(logoUrl);
+    say('새 프로젝트를 시작했습니다.');
+  });
+
+  /** Opened from the handoff page: /studio?handoff=<id>. Applies only what the
+   *  handoff actually specifies — the logo, the name, and the aspect implied by
+   *  its master resolutions. Glow and energy are this engine's own dials with
+   *  no counterpart in the spec, so they are left alone. */
+  async function restoreFromHandoff() {
+    const id = new URLSearchParams(window.location.search).get('handoff');
+    if (!id) return false;
+    const body = await core.fetchJson(`/api/handoffs/${encodeURIComponent(id)}`).catch(() => null);
+    const bundle = body?.handoff;
+    if (!bundle?.logoUrl) {
+      say('핸드오프에서 로고를 찾지 못했습니다.', 'error');
+      return true;
+    }
+    const blob = await fetch(bundle.logoUrl).then((r) => r.blob());
+    const spec = bundle.spec || {};
+    const land = spec.resolutions?.landscape;
+    if (land) applySettings({ aspect: land.width >= land.height ? 'landscape' : 'portrait' });
+    els.projectName.value = spec.title || bundle.name || '';
+    await setLogo(blob, bundle.entrypoints?.logo?.split('/').pop() || 'handoff-logo.png', spec.title || bundle.name);
+    say(`“${bundle.name}” 핸드오프를 불러왔습니다. 저장하면 라이브러리에 남습니다.`, 'success');
+    return true;
   }
+
+  // Opened from the library: /studio?project=<id>
+  async function restoreFromQuery() {
+    const wanted = core.projectIdFromQuery();
+    if (!wanted) return;
+    const project = core.state.projects.find((p) => p.id === wanted);
+    if (!project) {
+      say('요청한 프로젝트를 찾지 못했습니다.', 'error');
+      return;
+    }
+    projectId = project.id;
+    els.projectName.value = project.name || '';
+    applySettings(project.settings || {});
+    const source = project.logoBlob instanceof Blob ? project.logoBlob : await fetch(core.projectLogoUrl(project)).then((r) => r.blob());
+    await setLogo(source, `${project.name}.png`, project.name);
+    say(`“${project.name}” 을 불러왔습니다.`, 'success');
+  }
+
+  // ---- boot --------------------------------------------------------
+
+  setMode('upload');
+  applySettings(core.DEFAULT_PRESET);
+  window.PlazionStudio = { setLogo, applySettings, setProjectName: (n) => { els.projectName.value = String(n || '').slice(0, 120); } };
+
+  Promise.all([core.loadProjects(), core.loadPresets()])
+    .then(() => {
+      renderPresets(core.DEFAULT_PRESET.id);
+      return restoreFromHandoff().then((handled) => (handled ? null : restoreFromQuery()));
+    })
+    .catch(() => core.setStorageMode('local'));
 })();

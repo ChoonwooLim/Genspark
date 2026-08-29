@@ -71,14 +71,13 @@
       if (!response.ok) return;
       const body = await response.json();
       if (body.storage === 'unconfigured') {
-        els.section.hidden = true;
+        say('핸드오프 저장소가 아직 활성화되지 않았습니다 (PostgreSQL 미설정).', 'error');
         return;
       }
-      els.section.hidden = false;
       bundles = body.handoffs || [];
       render();
     } catch {
-      els.section.hidden = true;
+      say('핸드오프 목록을 불러오지 못했습니다.', 'error');
     }
   }
 
@@ -99,48 +98,32 @@
     els.empty.hidden = bundles.length > 0;
     els.list.innerHTML = bundles
       .map(
-        (b) => `<article class="handoff-card" data-id="${esc(b.id)}">
-          <div class="handoff-card__thumb">${
-            b.thumbnailUrl
-              ? `<img src="${esc(b.thumbnailUrl)}" alt="${esc(b.name)} 썸네일" />`
-              : '<i class="fa-solid fa-box-archive"></i>'
+        (b) => `<article class="handoff-row" data-id="${esc(b.id)}">
+          <div class="handoff-row__thumb">${
+            b.thumbnailUrl ? `<img src="${esc(b.thumbnailUrl)}" alt="" />` : ''
           }</div>
-          <div class="handoff-card__body">
-            <h3>${esc(b.name)}</h3>
-            <p class="handoff-card__spec">${esc(specSummary(b.spec))}</p>
-            <p class="handoff-card__meta">${esc(b.filename)} · ${fmtBytes(b.byteSize)} · 파일 ${b.fileCount}개</p>
-            <div class="handoff-card__actions">
-              <button type="button" data-action="adopt"><i class="fa-solid fa-wand-magic-sparkles"></i> 작업실에 적용</button>
-              <button type="button" data-action="detail"><i class="fa-solid fa-list"></i> 내용 보기</button>
-              <button type="button" data-action="preview"><i class="fa-solid fa-play"></i> 원본 미리보기</button>
-              <button type="button" class="danger" data-action="delete"><i class="fa-solid fa-trash"></i></button>
-            </div>
+          <div class="handoff-row__body">
+            <h3 class="h-card">${esc(b.name)}</h3>
+            <p class="caption">${esc(specSummary(b.spec)) || '스펙을 읽지 못했습니다'}</p>
+            <p class="micro">${esc(b.filename)} · ${fmtBytes(b.byteSize)} · 파일 ${b.fileCount}개</p>
+          </div>
+          <div class="handoff-row__side cluster">
+            <button type="button" class="btn btn--ghost btn--sm" data-action="adopt">작업실에 적용</button>
+            <button type="button" class="btn btn--quiet" data-action="detail">내용</button>
+            <button type="button" class="btn btn--quiet" data-action="preview">원본 재생</button>
+            <button type="button" class="btn btn--quiet" data-action="delete">삭제</button>
           </div>
         </article>`
       )
       .join('');
   }
 
-  /** Push the bundle's logo and its spec-derived settings into the studio. */
-  async function adopt(bundle) {
-    const studio = window.PlazionStudio;
-    if (!studio) throw new Error('작업실을 찾지 못했습니다.');
+  /** The studio is a separate page now, so adoption is a navigation: the
+   *  studio reads ?handoff=<id> and pulls the logo and spec itself. */
+  function adopt(bundle) {
     if (!bundle.logoUrl) throw new Error('이 번들에서 로고 에셋을 찾지 못했습니다.');
-
-    const response = await fetch(bundle.logoUrl);
-    if (!response.ok) throw new Error('번들의 로고 파일을 가져오지 못했습니다.');
-    const blob = await response.blob();
-    const filename = bundle.entrypoints?.logo?.split('/').pop() || 'handoff-logo.png';
-    await studio.setLogo(blob, filename, bundle.spec?.title || bundle.name);
-
-    // Only the aspect is machine-applicable today: glow and energy are this
-    // engine's own dials and the handoff has no equivalent value for them.
-    const land = bundle.spec?.resolutions?.landscape;
-    const port = bundle.spec?.resolutions?.portrait;
-    if (land && port) studio.applySettings({ aspect: land.width >= land.height ? 'landscape' : 'portrait' });
-    studio.setProjectName(bundle.spec?.title || bundle.name);
-
-    say(`“${bundle.name}” 의 로고와 설정을 작업실에 적용했습니다. 저장하려면 2단계에서 프로젝트 저장을 누르세요.`, 'success');
+    say(`“${bundle.name}” 을 작업실로 보냅니다…`, 'success');
+    window.location.href = `/studio?handoff=${encodeURIComponent(bundle.id)}`;
   }
 
   async function showDetail(bundle) {
@@ -159,7 +142,7 @@
 
     els.detail.hidden = false;
     els.detail.innerHTML = `
-      <header><h3>${esc(h.name)}</h3><button type="button" data-action="close-detail">닫기</button></header>
+      <header><h3>${esc(h.name)}</h3><button type="button" class="btn btn--quiet" data-action="close-detail">닫기</button></header>
       <dl class="handoff-spec">
         ${Object.entries(spec.colors || {}).map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}
       </dl>
@@ -176,7 +159,7 @@
     // No allow-same-origin: the bundle is untrusted, and the server also sends
     // `Content-Security-Policy: sandbox` on these responses.
     els.detail.innerHTML = `
-      <header><h3>${esc(bundle.name)} · 원본 미리보기</h3><button type="button" data-action="close-detail">닫기</button></header>
+      <header><h3>${esc(bundle.name)} · 원본 미리보기</h3><button type="button" class="btn btn--quiet" data-action="close-detail">닫기</button></header>
       <iframe class="handoff-preview" src="${esc(src)}" sandbox="allow-scripts" title="${esc(bundle.name)} 원본 미리보기"></iframe>`;
     els.detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -291,7 +274,7 @@
     const bundle = bundles.find((b) => b.id === id);
     if (!bundle) return;
     try {
-      if (button.dataset.action === 'adopt') await adopt(bundle);
+      if (button.dataset.action === 'adopt') adopt(bundle);
       if (button.dataset.action === 'detail') await showDetail(bundle);
       if (button.dataset.action === 'preview') showPreview(bundle);
       if (button.dataset.action === 'delete') {

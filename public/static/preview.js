@@ -1,3 +1,5 @@
+/* Preview page — the stage, its controls, and PNG sequence export.
+ * The archive listing moved to archive.js when each feature got its own page. */
 (function () {
   const canvas = document.getElementById('intro-canvas');
   const canvasWrap = document.getElementById('canvas-wrap');
@@ -17,9 +19,6 @@
   const exportStatusNote = document.getElementById('export-status-note');
   const uploadSequenceBtn = document.getElementById('upload-sequence');
   const uploadLabel = document.getElementById('upload-label');
-  const librarySection = document.getElementById('sequence-library-section');
-  const libraryList = document.getElementById('library-list');
-  const libraryNote = document.getElementById('library-note');
 
   let loops = 0;
   let soundEnabled = false;
@@ -46,16 +45,9 @@
   };
 
   function updateMuteUI() {
-    const icon = muteToggle.querySelector('i');
-    if (userMuted || !soundEnabled) {
-      icon.className = 'fa-solid fa-volume-xmark';
-      muteLabel.textContent = soundEnabled ? '사운드 꺼짐' : '사운드 대기';
-      muteToggle.setAttribute('aria-pressed', 'false');
-    } else {
-      icon.className = 'fa-solid fa-volume-high';
-      muteLabel.textContent = '사운드 켜짐';
-      muteToggle.setAttribute('aria-pressed', 'true');
-    }
+    const off = userMuted || !soundEnabled;
+    muteLabel.textContent = off ? (soundEnabled ? '사운드 꺼짐' : '사운드 대기') : '사운드 켜짐';
+    muteToggle.setAttribute('aria-pressed', off ? 'false' : 'true');
   }
 
   async function enableSound() {
@@ -272,51 +264,6 @@
       .join('');
   }
 
-  function renderLibrary(sequences) {
-    if (!sequences.length) {
-      libraryList.innerHTML = '<p class="library-empty">아직 저장된 시퀀스가 없습니다.</p>';
-      return;
-    }
-    libraryList.innerHTML = '';
-    sequences.forEach((seq) => {
-      const row = document.createElement('div');
-      row.className = 'library-row';
-
-      const info = document.createElement('div');
-      info.className = 'library-row__info';
-
-      const name = document.createElement('span');
-      name.className = 'library-row__name';
-      name.textContent = seq.filename;
-
-      const meta = document.createElement('span');
-      meta.className = 'library-row__meta';
-      meta.textContent = `${seq.width}×${seq.height} · ${seq.frameCount}프레임 · ${seq.fps}fps · ${formatBytes(seq.byteSize)} · ${formatDate(seq.createdAt)}`;
-
-      info.append(name, meta);
-
-      const link = document.createElement('a');
-      link.className = 'library-row__download';
-      link.href = seq.downloadUrl;
-      link.textContent = '다운로드';
-      link.setAttribute('download', '');
-
-      row.append(info, link);
-      libraryList.appendChild(row);
-    });
-  }
-
-  async function refreshLibrary() {
-    try {
-      const res = await fetch('/api/sequences', { headers: { accept: 'application/json' } });
-      if (!res.ok) return;
-      const data = await res.json();
-      renderLibrary(data.sequences || []);
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
   async function uploadZip(zipBlob, meta) {
     const checksum = await sha256Hex(zipBlob);
 
@@ -392,8 +339,7 @@
 
     exportStatus.classList.add('is-complete');
     setExportProgress(100, 100, `서버 저장 완료 · ${formatBytes(saved.byteSize)}`);
-    exportStatusNote.textContent = '아래 "서버 보관함"에서 언제든 다시 내려받을 수 있습니다.';
-    await refreshLibrary();
+    exportStatusNote.textContent = '보관함 페이지에서 언제든 다시 내려받을 수 있습니다.';
   }
 
   if (uploadSequenceBtn) {
@@ -422,7 +368,7 @@
         uploadSequenceBtn.disabled = false;
         downloadSequenceBtn.disabled = false;
         aspectBtns.forEach((btn) => { btn.disabled = false; });
-        uploadLabel.textContent = 'Orbitron 서버에 저장';
+        uploadLabel.textContent = '서버 보관함에 저장';
       }
     });
   }
@@ -436,10 +382,7 @@
       if (!status.enabled) return;
       serverStorage = status;
       uploadSequenceBtn.hidden = false;
-      librarySection.hidden = false;
-      libraryNote.textContent = `Orbitron 서버에 저장된 PNG 시퀀스입니다 · 최근 ${status.retention}개 보관 · 최대 ${formatBytes(status.maxBytes)}`;
-      await refreshLibrary();
-    } catch (error) {
+      } catch (error) {
       // No backend (Cloudflare Workers build) — leave the UI hidden.
     }
   })();
