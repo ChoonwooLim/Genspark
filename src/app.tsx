@@ -148,7 +148,7 @@ export function createApp(options: AppOptions = {}) {
               <div>
                 <p class="eyebrow">ONE-STOP LOGO WORKFLOW</p>
                 <h2>로고 작업실</h2>
-                <p>로고를 업로드하거나 Genspark AI로 만들고, 애니메이션을 조정한 뒤 프로젝트와 프리셋으로 저장하세요.</p>
+                <p>로고를 업로드하거나 Genspark AI로 만들거나 내부 UI 결과를 가져온 뒤, 애니메이션을 조정해 프로젝트와 프리셋으로 저장하세요.</p>
               </div>
               <div class="section-heading__actions">
                 <span id="storage-indicator" class="storage-indicator"><i class="fa-solid fa-circle"></i> 저장소 확인 중</span>
@@ -160,7 +160,7 @@ export function createApp(options: AppOptions = {}) {
               <article class="workspace-card source-card">
                 <div class="card-heading">
                   <span class="step-index">01</span>
-                  <div><h3>새 로고 선택</h3><p>기존 파일 또는 완전히 새로운 AI 시안</p></div>
+                  <div><h3>새 로고 선택</h3><p>기존 파일, 새 AI 시안 또는 Genspark 결과</p></div>
                 </div>
 
                 <div class="source-mode" role="tablist" aria-label="로고 제작 방식 선택">

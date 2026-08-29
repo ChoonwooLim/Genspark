@@ -272,7 +272,7 @@
 
   async function saveProject() {
     const name = els.projectName.value.trim();
-    if (!sourceConfirmed) throw new Error('먼저 1단계에서 새 로고를 업로드하거나 AI로 생성해 주세요.');
+    if (!sourceConfirmed) throw new Error('먼저 1단계에서 업로드, AI 생성 또는 Genspark 가져오기로 새 로고를 확정해 주세요.');
     if (!name) throw new Error('프로젝트 이름을 입력해 주세요.');
     const blob = await ensureCurrentBlob();
     const settings = getSettings();
@@ -429,7 +429,17 @@
     }
 
     const blob = await response.blob();
-    const filename = `genspark-import-${new Date().toISOString().slice(0, 10)}.png`;
+    const extensionByType = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/svg+xml': 'svg',
+      'image/webp': 'webp',
+      'image/gif': 'gif',
+      'image/vnd.microsoft.icon': 'ico',
+      'image/x-icon': 'ico',
+    };
+    const extension = extensionByType[blob.type] || 'img';
+    const filename = `genspark-import-${new Date().toISOString().slice(0, 10)}.${extension}`;
     await setLogo(blob, filename, 'Genspark Imported Logo');
     if (!els.projectName.value.trim() || els.projectName.value === '새 로고 프로젝트' || els.projectName.value === 'PLAZION VFX Intro') {
       els.projectName.value = 'Genspark Logo VFX Intro';
@@ -521,7 +531,7 @@
     els.dropzone.querySelector('strong').textContent = '로고 파일을 놓거나 선택';
     els.dropzone.querySelector('span').textContent = 'PNG · SVG · WEBP · JPG / 투명 PNG 권장';
     document.getElementById('workspace-section').scrollIntoView({ behavior: 'smooth' });
-    showStatus('새 프로젝트가 준비되었습니다. 로고를 업로드하거나 AI로 생성하세요.', 'info');
+    showStatus('새 프로젝트가 준비되었습니다. 업로드, AI 생성 또는 Genspark 가져오기로 로고를 선택하세요.', 'info');
   });
 
   els.sourceModeUpload.addEventListener('click', () => setSourceMode('upload'));

@@ -158,7 +158,9 @@ export async function importGensparkImage(
         Accept: 'image/png,image/webp,image/jpeg,image/svg+xml;q=0.8,*/*;q=0.1',
         ...(apiKey ? { 'X-Api-Key': apiKey } : {}),
       },
-      redirect: 'follow',
+      // Do not follow redirects: an allowed Genspark URL must not be able to
+      // redirect the server-side proxy to an untrusted/internal destination.
+      redirect: 'manual',
       signal: controller.signal,
     })
 
