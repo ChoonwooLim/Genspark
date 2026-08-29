@@ -351,6 +351,14 @@ export function createApp(options: AppOptions = {}) {
               <span>README의 마스터 스펙과 타임라인을 자동으로 읽어옵니다</span>
             </label>
 
+            <div class="handoff-actions">
+              <button id="handoff-folder-btn" type="button" class="ctrl-btn ctrl-btn--primary">
+                <i class="fa-solid fa-folder-open"></i> 압축 푼 폴더 선택
+              </button>
+              <input id="handoff-folder-input" type="file" multiple hidden />
+              <span class="handoff-actions__hint">폴더 선택이 안 되는 브라우저에서는 위에 ZIP을 그대로 올리세요</span>
+            </div>
+
             <p id="handoff-status" class="handoff-status" role="status" aria-live="polite"></p>
 
             <div id="handoff-list" class="handoff-list"></div>
