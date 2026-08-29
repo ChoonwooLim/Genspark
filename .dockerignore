@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-node
+uploads
+IMG
+HandOff
+.git
+.vs
+.wrangler
+*.log

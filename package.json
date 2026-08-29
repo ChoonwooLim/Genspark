@@ -15,7 +15,8 @@
     "fflate": "^0.8.3",
     "hono": "^4.13.5",
     "jszip": "^3.10.1",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "playwright-core": "^1.62.1"
   },
   "devDependencies": {
     "@hono/node-server": "^1.19.17",
