@@ -15,11 +15,17 @@
   const exportProgressValue = document.getElementById('export-progress-value');
   const exportProgressBar = document.getElementById('export-progress-bar');
   const exportStatusNote = document.getElementById('export-status-note');
+  const uploadSequenceBtn = document.getElementById('upload-sequence');
+  const uploadLabel = document.getElementById('upload-label');
+  const librarySection = document.getElementById('library-section');
+  const libraryList = document.getElementById('library-list');
+  const libraryNote = document.getElementById('library-note');
 
   let loops = 0;
   let soundEnabled = false;
   let userMuted = false;
   let isExporting = false;
+  let serverStorage = null;
 
   const intro = new window.PlazionIntro(canvas, {
     logoSrc: '/static/plazion_logo.png',
@@ -224,6 +230,209 @@
       sequenceLabel.textContent = '폴더에 PNG 시퀀스 저장';
     }
   });
+
+
+  // ===== Orbitron 서버 보관함 =====================================
+  // The /api/sequences backend only exists on the Node container deploy, and
+  // only reports enabled:true once a database is attached. Everything below
+  // stays hidden otherwise, so the Cloudflare Workers build is unaffected.
+
+  function formatBytes(bytes) {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+  }
+
+  function formatDate(value) {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  async function sha256Hex(blob) {
+    // crypto.subtle needs a secure context; the site is https-only in
+    // production, but fall back to skipping the checksum on plain http so a
+    // LAN/dev origin can still upload. The server treats it as optional.
+    if (!(window.crypto && window.crypto.subtle)) return null;
+    const digest = await window.crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  function renderLibrary(sequences) {
+    if (!sequences.length) {
+      libraryList.innerHTML = '<p class="library-empty">아직 저장된 시퀀스가 없습니다.</p>';
+      return;
+    }
+    libraryList.innerHTML = '';
+    sequences.forEach((seq) => {
+      const row = document.createElement('div');
+      row.className = 'library-row';
+
+      const info = document.createElement('div');
+      info.className = 'library-row__info';
+
+      const name = document.createElement('span');
+      name.className = 'library-row__name';
+      name.textContent = seq.filename;
+
+      const meta = document.createElement('span');
+      meta.className = 'library-row__meta';
+      meta.textContent = `${seq.width}×${seq.height} · ${seq.frameCount}프레임 · ${seq.fps}fps · ${formatBytes(seq.byteSize)} · ${formatDate(seq.createdAt)}`;
+
+      info.append(name, meta);
+
+      const link = document.createElement('a');
+      link.className = 'library-row__download';
+      link.href = seq.downloadUrl;
+      link.textContent = '다운로드';
+      link.setAttribute('download', '');
+
+      row.append(info, link);
+      libraryList.appendChild(row);
+    });
+  }
+
+  async function refreshLibrary() {
+    try {
+      const res = await fetch('/api/sequences', { headers: { accept: 'application/json' } });
+      if (!res.ok) return;
+      const data = await res.json();
+      renderLibrary(data.sequences || []);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function uploadZip(zipBlob, meta) {
+    const checksum = await sha256Hex(zipBlob);
+
+    const initRes = await fetch('/api/sequences/init', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...meta, byteSize: zipBlob.size }),
+    });
+    const initBody = await initRes.json().catch(() => ({}));
+    if (!initRes.ok) throw new Error(initBody.message || '업로드를 시작하지 못했습니다.');
+
+    const { uploadId, chunkSize } = initBody;
+    const total = Math.ceil(zipBlob.size / chunkSize);
+
+    // Sequential on purpose: the server appends chunks in order and rejects
+    // anything out of sequence, which keeps its state to a single file handle.
+    for (let index = 0; index < total; index += 1) {
+      const slice = zipBlob.slice(index * chunkSize, (index + 1) * chunkSize);
+      const res = await fetch(`/api/sequences/${uploadId}/chunk?index=${index}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: slice,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || `청크 ${index + 1}/${total} 업로드 실패`);
+      }
+      setExportProgress(90 + Math.round(((index + 1) / total) * 10), 100, `서버 업로드 중 · ${index + 1}/${total}`);
+    }
+
+    const completeRes = await fetch(`/api/sequences/${uploadId}/complete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(checksum ? { sha256: checksum } : {}),
+    });
+    const completeBody = await completeRes.json().catch(() => ({}));
+    if (!completeRes.ok) throw new Error(completeBody.message || '업로드 마무리에 실패했습니다.');
+    return completeBody;
+  }
+
+  async function saveSequenceToServer() {
+    const result = await intro.exportPngSequence({
+      fps: 30,
+      onProgress: (current, total) => {
+        setExportProgress(Math.round((current / total) * 80), 100, `PNG 프레임 생성 중 · ${current}/${total}`);
+      },
+    });
+
+    const zip = new window.JSZip();
+    const folder = zip.folder('plazion_png_sequence');
+    result.frames.forEach((blob, index) => {
+      folder.file(`plazion_${String(index).padStart(4, '0')}.png`, blob);
+    });
+    folder.file('sequence-info.txt', getSequenceInfo(result.frames.length));
+
+    setExportProgress(80, 100, 'ZIP 패키징 중');
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, (metadata) => {
+      setExportProgress(80 + Math.round(metadata.percent * 0.1), 100, 'ZIP 패키징 중');
+    });
+
+    if (serverStorage && zipBlob.size > serverStorage.maxBytes) {
+      throw new Error(`파일이 서버 상한(${formatBytes(serverStorage.maxBytes)})을 넘었습니다 — ${formatBytes(zipBlob.size)}`);
+    }
+
+    const saved = await uploadZip(zipBlob, {
+      filename: `plazion_transparent_${canvas.width}x${canvas.height}_30fps.zip`,
+      aspect: intro.aspect,
+      width: canvas.width,
+      height: canvas.height,
+      fps: 30,
+      frameCount: result.frames.length,
+    });
+
+    exportStatus.classList.add('is-complete');
+    setExportProgress(100, 100, `서버 저장 완료 · ${formatBytes(saved.byteSize)}`);
+    exportStatusNote.textContent = '아래 "서버 보관함"에서 언제든 다시 내려받을 수 있습니다.';
+    await refreshLibrary();
+  }
+
+  if (uploadSequenceBtn) {
+    uploadSequenceBtn.addEventListener('click', async () => {
+      if (isExporting) return;
+
+      isExporting = true;
+      exportStatus.hidden = false;
+      exportStatus.classList.remove('is-error', 'is-complete');
+      uploadSequenceBtn.disabled = true;
+      downloadSequenceBtn.disabled = true;
+      aspectBtns.forEach((btn) => { btn.disabled = true; });
+      uploadLabel.textContent = '서버에 저장 중…';
+      exportStatusNote.textContent = 'PNG 90장을 ZIP으로 묶어 Orbitron 서버에 업로드합니다.';
+      setExportProgress(0, 100, 'PNG 프레임 준비 중');
+
+      try {
+        await saveSequenceToServer();
+      } catch (error) {
+        console.error(error);
+        exportStatus.classList.add('is-error');
+        exportStatusText.textContent = error instanceof Error ? error.message : '서버 저장에 실패했습니다.';
+        exportProgressValue.textContent = '오류';
+      } finally {
+        isExporting = false;
+        uploadSequenceBtn.disabled = false;
+        downloadSequenceBtn.disabled = false;
+        aspectBtns.forEach((btn) => { btn.disabled = false; });
+        uploadLabel.textContent = 'Orbitron 서버에 저장';
+      }
+    });
+  }
+
+  (async function initServerStorage() {
+    if (!uploadSequenceBtn) return;
+    try {
+      const res = await fetch('/api/sequences/status', { headers: { accept: 'application/json' } });
+      if (!res.ok) return;
+      const status = await res.json();
+      if (!status.enabled) return;
+      serverStorage = status;
+      uploadSequenceBtn.hidden = false;
+      librarySection.hidden = false;
+      libraryNote.textContent = `Orbitron 서버에 저장된 PNG 시퀀스입니다 · 최근 ${status.retention}개 보관 · 최대 ${formatBytes(status.maxBytes)}`;
+      await refreshLibrary();
+    } catch (error) {
+      // No backend (Cloudflare Workers build) — leave the UI hidden.
+    }
+  })();
 
   updateMuteUI();
 })();

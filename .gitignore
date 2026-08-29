@@ -32,3 +32,9 @@ lerna-debug.log*
 
 # misc
 .DS_Store
+
+# runtime upload storage (local dev)
+uploads/
+
+# locally exported PNG sequences
+IMG/

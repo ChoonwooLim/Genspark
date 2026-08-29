@@ -549,3 +549,99 @@ a { color: var(--purple-accent); text-decoration: none; }
   .stage-controls { flex-direction: column; width: 100%; }
   .ctrl-btn { justify-content: center; }
 }
+
+/* ===== Server storage: upload button + library ===== */
+.ctrl-btn--server {
+  border-color: rgba(120, 200, 255, 0.45);
+  background: linear-gradient(180deg, rgba(70, 150, 255, 0.26), rgba(70, 150, 255, 0.1));
+}
+
+.library-section {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px 72px;
+}
+
+.library-note {
+  margin: -8px 0 20px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.library-empty {
+  padding: 22px;
+  border: 1px dashed var(--border-soft);
+  border-radius: 12px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.library-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--bg-panel);
+}
+
+.library-row__info {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.library-row__name {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-row__meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+}
+
+.library-row__download {
+  flex: none;
+  padding: 8px 16px;
+  border: 1px solid rgba(183, 130, 255, 0.45);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-main);
+  text-decoration: none;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.library-row__download:hover {
+  border-color: var(--purple-accent);
+  background: rgba(122, 77, 255, 0.2);
+}
+
+@media (max-width: 640px) {
+  .library-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .library-row__download {
+    text-align: center;
+  }
+}

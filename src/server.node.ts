@@ -5,9 +5,14 @@
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { createApp } from './app'
+import { createSequencesApi } from './sequences.node'
 
 const app = createApp()
 app.use('/static/*', serveStatic({ root: './public' }))
+
+// Server-side PNG-sequence archive (Postgres metadata + archive on the
+// Orbitron persistent volume). Node-only; the Workers entry has no equivalent.
+app.route('/api/sequences', await createSequencesApi())
 
 const port = Number(process.env.PORT) || 3000
 

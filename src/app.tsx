@@ -105,6 +105,10 @@ export function createApp() {
                   <i class="fa-solid fa-file-zipper"></i>
                   <span id="sequence-label">폴더에 PNG 시퀀스 저장</span>
                 </button>
+                <button id="upload-sequence" type="button" class="ctrl-btn ctrl-btn--server" hidden>
+                  <i class="fa-solid fa-cloud-arrow-up"></i>
+                  <span id="upload-label">Orbitron 서버에 저장</span>
+                </button>
               </div>
               <div id="export-status" class="export-status" role="status" aria-live="polite" hidden>
                 <div class="export-status__row">
@@ -116,6 +120,20 @@ export function createApp() {
                 </div>
                 <p id="export-status-note">현재 화면비 · 30fps · 3초 · 투명 PNG 90장을 선택한 폴더에 저장합니다.</p>
               </div>
+            </div>
+          </section>
+
+          {/* ===== Server Library (Node container only — hidden when the
+                   /api/sequences backend is absent or has no database) ===== */}
+          <section id="library-section" class="library-section" hidden>
+            <h2 class="section-title">
+              <i class="fa-solid fa-server"></i> 서버 보관함
+            </h2>
+            <p class="library-note" id="library-note">
+              Orbitron 서버에 저장된 PNG 시퀀스입니다.
+            </p>
+            <div id="library-list" class="library-list">
+              <p class="library-empty">아직 저장된 시퀀스가 없습니다.</p>
             </div>
           </section>
 
