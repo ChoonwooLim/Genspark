@@ -193,79 +193,75 @@
     els.detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  function showPreview(bundle) {
-    const preview = bundle.entrypoints?.previews?.[0];
-    if (!preview) throw new Error('이 번들에는 HTML 미리보기가 없습니다.');
-    const src = `/api/handoffs/${encodeURIComponent(bundle.id)}/files/${preview.split('/').map(encodeURIComponent).join('/')}`;
-    els.detail.hidden = false;
+  /** Prototypes in a handoff are built at their own fixed canvas size — this
+   *  bundle's is a hard 1920x1080 (or 1080x1920) with no viewport scaling. An
+   *  iframe narrower than that clips the canvas instead of fitting it, which is
+   *  why a portrait file showed nothing but background: its logo sits at 75%
+   *  height, outside the band a 16:9 box happens to reveal.
+   *
+   *  So the frame is rendered at the prototype's natural size and scaled down
+   *  with a transform. The bundle's own HTML is left untouched. */
+  let previewFit = null;
+
+  function previewSize(path) {
+    return /9[x_-]?16|portrait|세로/i.test(path) ? { w: 1080, h: 1920 } : { w: 1920, h: 1080 };
+  }
+
+  function previewLabel(path) {
+    return path.split('/').pop().replace(/\.html$/i, '');
+  }
+
+  function renderPreviewFrame(bundle, path) {
+    const { w, h } = previewSize(path);
+    const src = `/api/handoffs/${encodeURIComponent(bundle.id)}/files/${path.split('/').map(encodeURIComponent).join('/')}`;
+    const holder = els.detail.querySelector('.handoff-frame');
+    if (!holder) return;
+    holder.style.setProperty('--frame-w', `${w}`);
+    holder.style.setProperty('--frame-h', `${h}`);
     // No allow-same-origin: the bundle is untrusted, and the server also sends
     // `Content-Security-Policy: sandbox` on these responses.
+    holder.innerHTML = `<iframe class="handoff-preview" style="width:${w}px;height:${h}px" src="${esc(src)}" sandbox="allow-scripts" title="${esc(previewLabel(path))}"></iframe>`;
+
+    const fit = () => {
+      const width = holder.clientWidth;
+      if (width) holder.style.setProperty('--frame-scale', String(width / w));
+    };
+    fit();
+    previewFit?.disconnect();
+    previewFit = new ResizeObserver(fit);
+    previewFit.observe(holder);
+  }
+
+  function showPreview(bundle) {
+    const previews = bundle.entrypoints?.previews || [];
+    if (!previews.length) throw new Error('이 번들에는 HTML 미리보기가 없습니다.');
+
+    // previews[] arrives in zip order, which put a 9:16 file first. Default to
+    // a landscape one when the bundle ships both.
+    const ordered = [...previews].sort(
+      (a, b) => (previewSize(a).w < previewSize(a).h ? 1 : 0) - (previewSize(b).w < previewSize(b).h ? 1 : 0)
+    );
+
+    els.detail.hidden = false;
     els.detail.innerHTML = `
-      <header><h3>${esc(bundle.name)} · 원본 미리보기</h3><button type="button" class="btn btn--quiet" data-action="close-detail">닫기</button></header>
-      <iframe class="handoff-preview" src="${esc(src)}" sandbox="allow-scripts" title="${esc(bundle.name)} 원본 미리보기"></iframe>`;
+      <header>
+        <h3>${esc(bundle.name)} · 원본 재생</h3>
+        <button type="button" class="btn btn--quiet" data-action="close-detail">닫기</button>
+      </header>
+      <div class="field" style="max-width:420px;margin-bottom:16px">
+        <label for="handoff-preview-pick">재생할 프로토타입 (${ordered.length}개)</label>
+        <select id="handoff-preview-pick" class="select">
+          ${ordered.map((p) => `<option value="${esc(p)}">${esc(previewLabel(p))}</option>`).join('')}
+        </select>
+      </div>
+      <div class="handoff-frame"></div>
+      <p class="micro" style="margin-top:10px">원본 캔버스 크기 그대로 재생한 뒤 화면에 맞춰 축소합니다.</p>`;
+
+    renderPreviewFrame(bundle, ordered[0]);
+    els.detail.querySelector('#handoff-preview-pick').addEventListener('change', (event) => {
+      renderPreviewFrame(bundle, event.target.value);
+    });
     els.detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-
-  // Directories that are never part of a handoff and would balloon the upload.
-  const SKIP_DIR = /^(node_modules|\.git|\.next|dist|build|\.cache)$/i;
-  const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
-
-  /** Walk a FileSystemDirectoryHandle into [{path, file}]. */
-  async function walkDirectory(handle, prefix = '', out = []) {
-    for await (const [name, child] of handle.entries()) {
-      if (child.kind === 'directory') {
-        if (SKIP_DIR.test(name)) continue;
-        await walkDirectory(child, `${prefix}${name}/`, out);
-      } else {
-        const file = await child.getFile();
-        if (file.size <= MAX_ENTRY_BYTES) out.push({ path: `${prefix}${name}`, file });
-      }
-    }
-    return out;
-  }
-
-  /** Zip the picked files in the browser and hand the archive to the existing
-   *  import endpoint, so folder and .zip imports share one server path and one
-   *  set of validation rules. */
-  async function zipEntries(entries, rootName) {
-    if (!window.JSZip) throw new Error('ZIP 모듈을 불러오지 못했습니다.');
-    const zip = new window.JSZip();
-    entries.forEach(({ path, file }) => zip.file(path, file));
-    say(`폴더 압축 중… 파일 ${entries.length}개`);
-    const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
-    return new File([blob], `${rootName || 'handoff'}.zip`, { type: 'application/zip' });
-  }
-
-  async function importFolder() {
-    if (busy) return;
-    if (!('showDirectoryPicker' in window)) {
-      els.folderInput.click();
-      return;
-    }
-    let handle;
-    try {
-      handle = await window.showDirectoryPicker({ id: 'plazion-handoff', mode: 'read' });
-    } catch (error) {
-      if (error && error.name === 'AbortError') return;
-      throw error;
-    }
-    say(`“${handle.name}” 폴더를 읽는 중…`);
-    const entries = await walkDirectory(handle, `${handle.name}/`);
-    if (!entries.length) throw new Error('폴더에서 파일을 찾지 못했습니다.');
-    await upload(await zipEntries(entries, handle.name));
-  }
-
-  async function importFolderInput(fileList) {
-    const files = Array.from(fileList);
-    if (!files.length) return;
-    const entries = files
-      .map((file) => ({ path: file.webkitRelativePath || file.name, file }))
-      .filter(({ path, file }) =>
-        file.size <= MAX_ENTRY_BYTES && !path.split('/').some((part) => SKIP_DIR.test(part))
-      );
-    if (!entries.length) throw new Error('가져올 수 있는 파일이 없습니다.');
-    const rootName = entries[0].path.split('/')[0] || 'handoff';
-    await upload(await zipEntries(entries, rootName));
   }
 
   async function upload(file) {
@@ -337,6 +333,8 @@
 
   els.detail.addEventListener('click', (event) => {
     if (event.target.closest('[data-action="close-detail"]')) {
+      previewFit?.disconnect();
+      previewFit = null;
       els.detail.hidden = true;
       els.detail.innerHTML = '';
     }

@@ -641,7 +641,32 @@ img { max-width: 100%; display: block; }
 .handoff-files li { margin-bottom: 5px; }
 .handoff-files a { color: var(--action-blue); }
 .handoff-files span { color: var(--muted); }
-.handoff-preview { width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--hairline); border-radius: var(--r-sm); background: #000; }
+/* The frame holds a prototype at its own fixed pixel size and scales it to
+   fit the column, so nothing is cropped whatever canvas the handoff was built
+   at. --frame-w/--frame-h are set per prototype from JS. */
+.handoff-frame {
+  --frame-w: 1920;
+  --frame-h: 1080;
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--frame-w) / var(--frame-h);
+  max-height: 70vh;
+  margin-inline: auto;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: #000;
+}
+
+.handoff-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 0;
+  transform-origin: top left;
+  /* CSS cannot divide a length by a length, so the ratio comes from JS. */
+  transform: scale(var(--frame-scale, 1));
+}
 
 .handoff-timeline__section {
   padding-top: 18px;
