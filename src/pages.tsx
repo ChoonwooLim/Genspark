@@ -390,41 +390,79 @@ export function PreviewPage() {
       />
 
       <div class="shell reveal" id="export">
-        <Stage
-          controls={
-            <>
-              <div class="stage__controls">
-                <button id="mute-toggle" type="button" class="stage-btn" aria-pressed="true">
-                  <span id="mute-label">사운드 켜짐</span>
-                </button>
-                <button id="restart-btn" type="button" class="stage-btn">
-                  다시보기
-                </button>
-                <a id="download-logo" href="/static/plazion_logo.png" download class="stage-btn">
-                  로고 원본
-                </a>
-                <button id="download-sequence" type="button" class="stage-btn stage-btn--solid">
-                  <span id="sequence-label">폴더에 PNG 시퀀스 저장</span>
-                </button>
-                <button id="upload-sequence" type="button" class="stage-btn" hidden>
-                  <span id="upload-label">서버 보관함에 저장</span>
-                </button>
-              </div>
-              <div id="export-status" class="export-status" role="status" aria-live="polite" hidden>
-                <div class="export-status__row">
-                  <span id="export-status-text">프레임 준비 중</span>
-                  <span id="export-progress-value">0%</span>
+        <div class="stage">
+          <div class="stage__top">
+            {/* Source first: the built-in engine and an imported prototype are
+                different animations, not two views of one. */}
+            <div class="field stage__source">
+              <label class="mono-label" for="source-select">Animation</label>
+              <select id="source-select" class="select select--on-dark"></select>
+            </div>
+
+            <div id="aspect-toggle" class="segmented" role="tablist" aria-label="화면 비율">
+              <button type="button" class="aspect-btn is-active" data-aspect="landscape" role="tab" aria-selected="true">
+                16:9
+              </button>
+              <button type="button" class="aspect-btn" data-aspect="portrait" role="tab" aria-selected="false">
+                9:16
+              </button>
+            </div>
+
+            <p class="loop-badge">
+              <span id="loop-count">0</span> loops
+            </p>
+          </div>
+
+          <div id="engine-view">
+            <div id="canvas-wrap" class="canvas-wrap canvas-wrap--landscape">
+              <canvas id="intro-canvas" width="1920" height="1080" aria-label="인트로 미리보기"></canvas>
+              <div id="sound-gate" class="sound-gate">
+                <div class="sound-gate__inner">
+                  <h2>사운드와 함께 재생</h2>
+                  <p>브라우저 정책상 클릭 후 오디오가 활성화됩니다</p>
+                  <button id="sound-gate-btn" type="button" class="stage-btn stage-btn--solid">
+                    재생 시작
+                  </button>
                 </div>
-                <div class="progress" aria-hidden="true">
-                  <span id="export-progress-bar"></span>
-                </div>
-                <p id="export-status-note" class="export-status__note">
-                  현재 화면비 · 30fps · 3초 · 투명 PNG 90장
-                </p>
               </div>
-            </>
-          }
-        />
+            </div>
+          </div>
+
+          {/* Imported prototypes are untrusted HTML: sandboxed, no same-origin. */}
+          <div id="proto-view" class="handoff-frame" hidden></div>
+
+          <p id="source-note" class="export-status__note"></p>
+
+          <div class="stage__controls">
+            <button id="mute-toggle" type="button" class="stage-btn" aria-pressed="true">
+              <span id="mute-label">사운드 켜짐</span>
+            </button>
+            <button id="restart-btn" type="button" class="stage-btn">
+              다시보기
+            </button>
+            <a id="download-logo" href="/static/plazion_logo.png" download class="stage-btn">
+              로고 원본
+            </a>
+            <button id="download-sequence" type="button" class="stage-btn stage-btn--solid">
+              <span id="sequence-label">폴더에 PNG 시퀀스 저장</span>
+            </button>
+            <button id="upload-sequence" type="button" class="stage-btn" hidden>
+              <span id="upload-label">서버 보관함에 저장</span>
+            </button>
+          </div>
+          <div id="export-status" class="export-status" role="status" aria-live="polite" hidden>
+            <div class="export-status__row">
+              <span id="export-status-text">프레임 준비 중</span>
+              <span id="export-progress-value">0%</span>
+            </div>
+            <div class="progress" aria-hidden="true">
+              <span id="export-progress-bar"></span>
+            </div>
+            <p id="export-status-note" class="export-status__note">
+              현재 화면비 · 30fps · 3초 · 투명 PNG 90장
+            </p>
+          </div>
+        </div>
       </div>
 
       <section class="section">

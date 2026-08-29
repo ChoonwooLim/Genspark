@@ -119,3 +119,20 @@
 .export-status.is-error .export-status__row { color: var(--coral); }
 .export-status.is-error .progress > span { background: var(--coral); }
 .export-status.is-complete .progress > span { background: var(--pale-green); }
+
+/* Source picker sits on the dark stage, so the select inverts */
+.stage__source { gap: 6px; }
+.stage__source .mono-label { color: rgba(255, 255, 255, 0.45); }
+
+.select--on-dark {
+  min-width: 240px;
+  padding: 8px 12px;
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--on-dark);
+  font-size: 14px;
+}
+.select--on-dark:disabled { opacity: 0.5; }
+.select--on-dark option { background: #14141a; color: #fff; }
+
+#proto-view { margin-inline: auto; max-width: 900px; }

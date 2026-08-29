@@ -20,6 +20,10 @@
   const uploadSequenceBtn = document.getElementById('upload-sequence');
   const uploadLabel = document.getElementById('upload-label');
   const downloadLogo = document.getElementById('download-logo');
+  const sourceSelect = document.getElementById('source-select');
+  const sourceNote = document.getElementById('source-note');
+  const engineView = document.getElementById('engine-view');
+  const protoView = document.getElementById('proto-view');
 
   let loops = 0;
   let soundEnabled = false;
@@ -388,13 +392,159 @@
     }
   })();
 
-  /** Adopt whatever the studio was last working on.
+  /* ===== Sources ===================================================
    *
-   *  Navigating here is a fresh page load, so the studio's object URL is gone
-   *  by the time this runs — without this the stage always fell back to the
-   *  bundled PLAZION logo no matter what had been applied next door.
-   *  ?project=<id> takes precedence, so a library row opens that project. */
-  (async function adoptWorkingLogo() {
+   * Two different things can play here and they are not two views of one
+   * animation: the built-in voxel engine, which renders whatever logo is
+   * loaded, and a prototype from an imported handoff, which is its own
+   * HTML/CSS animation and knows nothing about our logo or our engine.
+   * Swapping only the logo into the engine — what this page used to do —
+   * played the PLAZION animation with someone else's mark on it.
+   */
+
+  let sources = [{ kind: 'engine', label: '내장 엔진 · Voxel Materialize' }];
+  let active = sources[0];
+  let protoFit = null;
+
+  const PROTO_SIZE = (path) =>
+    /9[x_-]?16|portrait/i.test(path) ? { w: 1080, h: 1920 } : { w: 1920, h: 1080 };
+
+  /** "Logo Animation Hologram 9x16.html" -> concept "Hologram", portrait. */
+  function describePreview(path) {
+    const file = path.split('/').pop().replace(/\.html$/i, '');
+    const portrait = /9[x_-]?16|portrait/i.test(file);
+    const concept = file.replace(/logo\s*animation/i, '').replace(/9[x_-]?16/i, '').trim();
+    return { concept: concept || '기본', portrait, path };
+  }
+
+  async function loadHandoffSources() {
+    try {
+      const body = await fetch('/api/handoffs').then((r) => r.json());
+      for (const bundle of body.handoffs || []) {
+        const byConcept = new Map();
+        for (const path of bundle.entrypoints?.previews || []) {
+          const info = describePreview(path);
+          if (!byConcept.has(info.concept)) byConcept.set(info.concept, {});
+          byConcept.get(info.concept)[info.portrait ? 'portrait' : 'landscape'] = path;
+        }
+        for (const [concept, files] of byConcept) {
+          sources.push({
+            kind: 'proto',
+            label: `${bundle.name} · ${concept}`,
+            bundleId: bundle.id,
+            files,
+          });
+        }
+      }
+    } catch {
+      /* no backend — the engine is still selectable */
+    }
+
+    sourceSelect.replaceChildren(
+      ...sources.map((source, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = source.label;
+        return option;
+      })
+    );
+    sourceSelect.disabled = sources.length < 2;
+  }
+
+  function currentAspect() {
+    return canvasWrap.classList.contains('canvas-wrap--portrait') ? 'portrait' : 'landscape';
+  }
+
+  function renderProto() {
+    const aspect = currentAspect();
+    const path = active.files[aspect] || active.files.landscape || active.files.portrait;
+    if (!path) {
+      sourceNote.textContent = '이 컨셉에는 해당 화면비 파일이 없습니다.';
+      return;
+    }
+    const { w, h } = PROTO_SIZE(path);
+    const src = `/api/handoffs/${encodeURIComponent(active.bundleId)}/files/${path
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/')}`;
+    protoView.innerHTML = `<iframe class="handoff-preview" style="width:${w}px;height:${h}px" src="${src}" sandbox="allow-scripts" title="${active.label}"></iframe>`;
+
+    const fit = () => {
+      const availW = protoView.clientWidth;
+      if (!availW) return;
+      const availH = Math.min(window.innerHeight * 0.66, (availW * h) / w);
+      const k = Math.min(availW / w, availH / h);
+      protoView.style.height = `${Math.round(h * k)}px`;
+      protoView.style.setProperty('--frame-scale', String(k));
+      const frame = protoView.querySelector('.handoff-preview');
+      if (frame) frame.style.left = `${Math.round((availW - w * k) / 2)}px`;
+    };
+    fit();
+    protoFit?.disconnect();
+    protoFit = new ResizeObserver(fit);
+    protoFit.observe(protoView);
+  }
+
+  function applySource(source) {
+    active = source;
+    const isEngine = source.kind === 'engine';
+
+    engineView.hidden = !isEngine;
+    protoView.hidden = isEngine;
+    if (isEngine) {
+      protoFit?.disconnect();
+      protoFit = null;
+      protoView.innerHTML = '';
+    }
+
+    // The sound gate and mute control belong to the engine's procedural audio.
+    // A prototype brings its own (this handoff is silent), so offering our
+    // audio controls over it would be a lie.
+    muteToggle.hidden = !isEngine;
+    soundGate.hidden = !isEngine;
+
+    // Frames can only be captured from our own canvas. A sandboxed iframe on
+    // an opaque origin cannot be read, so export is engine-only.
+    downloadSequenceBtn.disabled = !isEngine;
+    if (uploadSequenceBtn) uploadSequenceBtn.disabled = !isEngine;
+
+    sourceNote.textContent = isEngine
+      ? '내장 엔진 · 3초 루프 · PNG 시퀀스 내보내기 가능'
+      : '가져온 원본 프로토타입을 그대로 재생합니다 · PNG 시퀀스 내보내기는 내장 엔진에서만 가능합니다';
+
+    if (!isEngine) renderProto();
+  }
+
+  sourceSelect.addEventListener('change', () => applySource(sources[Number(sourceSelect.value)]));
+  window.addEventListener('plazion:aspect-change', () => {
+    if (active.kind === 'proto') renderProto();
+  });
+
+  /** Adopt whatever the studio was last working on. Navigating here is a fresh
+   *  page load, so the studio's object URL is already gone. */
+  async function applyLogo(blob, settings, name) {
+    const url = URL.createObjectURL(blob);
+    await intro.setLogoSource(url);
+    downloadLogo.href = url;
+    downloadLogo.setAttribute('download', `${name || 'logo'}.png`);
+
+    if (settings) {
+      intro.setVisualSettings({
+        glow: (settings.glow ?? 100) / 100,
+        energy: (settings.energy ?? 100) / 100,
+      });
+      if (settings.aspect && settings.aspect !== intro.aspect) {
+        const button = Array.from(aspectBtns).find((b) => b.getAttribute('data-aspect') === settings.aspect);
+        if (button) button.click();
+      }
+    }
+    if (name) exportStatusNote.textContent = `현재 로고: ${name} · 30fps · 3초 · 투명 PNG 90장`;
+  }
+
+  (async function boot() {
+    await loadHandoffSources();
+    applySource(sources[0]);
+
     const core = window.PlazionCore;
     if (!core) return;
 
@@ -415,25 +565,6 @@
     const working = await core.getWorkingLogo();
     if (working?.blob) await applyLogo(working.blob, working.meta?.settings, working.meta?.name);
   })();
-
-  async function applyLogo(blob, settings, name) {
-    const url = URL.createObjectURL(blob);
-    await intro.setLogoSource(url);
-    downloadLogo.href = url;
-    downloadLogo.setAttribute('download', `${name || 'logo'}.png`);
-
-    if (settings) {
-      intro.setVisualSettings({
-        glow: (settings.glow ?? 100) / 100,
-        energy: (settings.energy ?? 100) / 100,
-      });
-      if (settings.aspect && settings.aspect !== intro.aspect) {
-        const button = Array.from(aspectBtns).find((b) => b.getAttribute('data-aspect') === settings.aspect);
-        if (button) button.click();
-      }
-    }
-    if (name) exportStatusNote.textContent = `현재 로고: ${name} · 30fps · 3초 · 투명 PNG 90장`;
-  }
 
   updateMuteUI();
 })();
