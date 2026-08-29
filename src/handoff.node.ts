@@ -86,6 +86,12 @@ export function parseHandoffSpec(md: string) {
     tokens: [] as { name: string; value: string }[],
     aspects: [] as string[],
     concepts: [] as { name: string | null; duration: number; phases: number }[],
+    conceptFiles: [] as {
+      id: string | null
+      name: string
+      note: string | null
+      files: { landscape: string | null; portrait: string | null }
+    }[],
     variants: [] as any[],
     timeline: [] as any[],
     durationSource: 'stated' as 'stated' | 'timeline',
@@ -184,6 +190,34 @@ export function parseHandoffSpec(md: string) {
       name: match[3].trim(),
       selected: Boolean(match[1]) || /selected/i.test(match[4] || ''),
       note: (match[4] || '').trim() || null,
+    })
+  }
+
+  // ---- concept -> prototype file mapping ----
+  // Some handoffs ship several concepts and say which file is which in a
+  // table. That is far better than guessing a concept from a filename, so it
+  // is read verbatim when present.
+  for (const cells of rows) {
+    const files = cells
+      .map((cell) => clean(cell))
+      .filter((cell) => /\.html?$/i.test(cell) && !/\s\|/.test(cell))
+    if (!files.length || cells.length < 3) continue
+
+    const label = clean(cells[1])
+    if (!label || /파일|file/i.test(label)) continue
+
+    const landscape = files.find((f) => !/9[x_-]?16|portrait/i.test(f)) || null
+    const portrait = files.find((f) => /9[x_-]?16|portrait/i.test(f)) || null
+    const rest = cells
+      .slice(2)
+      .map((cell) => clean(cell))
+      .filter((cell) => cell && !/\.html?$/i.test(cell))
+
+    spec.conceptFiles.push({
+      id: clean(cells[0]) || null,
+      name: label,
+      note: rest[rest.length - 1] || null,
+      files: { landscape, portrait },
     })
   }
 

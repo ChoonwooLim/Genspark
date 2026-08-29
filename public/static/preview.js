@@ -421,19 +421,40 @@
     try {
       const body = await fetch('/api/handoffs').then((r) => r.json());
       for (const bundle of body.handoffs || []) {
+        const previews = bundle.entrypoints?.previews || [];
+        const byBasename = new Map(previews.map((p) => [p.split('/').pop(), p]));
+        const mapped = bundle.spec?.conceptFiles || [];
+
+        // A handoff that names its concepts and says which file is which wins;
+        // deriving a concept from a filename left Plasma showing as "기본"
+        // because its file is just "Logo Animation.html".
+        if (mapped.length) {
+          for (const concept of mapped) {
+            const files = {};
+            for (const aspect of ['landscape', 'portrait']) {
+              const full = byBasename.get(concept.files?.[aspect]);
+              if (full) files[aspect] = full;
+            }
+            if (!Object.keys(files).length) continue;
+            sources.push({
+              kind: 'proto',
+              label: `${bundle.name} · ${concept.id ? `${concept.id} · ` : ''}${concept.name}`,
+              note: concept.note || null,
+              bundleId: bundle.id,
+              files,
+            });
+          }
+          continue;
+        }
+
         const byConcept = new Map();
-        for (const path of bundle.entrypoints?.previews || []) {
+        for (const path of previews) {
           const info = describePreview(path);
           if (!byConcept.has(info.concept)) byConcept.set(info.concept, {});
           byConcept.get(info.concept)[info.portrait ? 'portrait' : 'landscape'] = path;
         }
         for (const [concept, files] of byConcept) {
-          sources.push({
-            kind: 'proto',
-            label: `${bundle.name} · ${concept}`,
-            bundleId: bundle.id,
-            files,
-          });
+          sources.push({ kind: 'proto', label: `${bundle.name} · ${concept}`, note: null, bundleId: bundle.id, files });
         }
       }
     } catch {
@@ -510,7 +531,9 @@
 
     sourceNote.textContent = isEngine
       ? '내장 엔진 · 3초 루프 · PNG 시퀀스 내보내기 가능'
-      : '가져온 원본 프로토타입을 그대로 재생합니다 · PNG 시퀀스 내보내기는 내장 엔진에서만 가능합니다';
+      : [source.note, '가져온 원본 프로토타입을 그대로 재생합니다', 'PNG 시퀀스 내보내기는 내장 엔진에서만 가능합니다']
+          .filter(Boolean)
+          .join(' · ');
 
     if (!isEngine) renderProto();
   }
