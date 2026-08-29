@@ -6,7 +6,7 @@
 // shared client state lives in /static/core.js.
 import { Hono } from 'hono'
 import { etag } from 'hono/etag'
-import { renderer } from './renderer'
+import { renderer, ASSET_VERSION } from './renderer'
 import { generateLogoWithGenspark, importGensparkImage, type GensparkConfig } from './genspark-image'
 import { HomePage, StudioPage, PreviewPage, LibraryPage, HandoffPage, ArchivePage } from './pages'
 
@@ -99,6 +99,28 @@ export function createApp(options: AppOptions = {}) {
       } as any)
     )
   }
+
+  /** Bare surface for the headless renderer — no layout, no chrome, no other
+   *  scripts. Rendered with c.html rather than the shared renderer because the
+   *  navigation and stylesheets would end up in the captured frames. */
+  app.get('/render/engine', (c) => {
+    const q = c.req.query()
+    const portrait = q.aspect === 'portrait'
+    const width = portrait ? 1080 : 1920
+    const height = portrait ? 1920 : 1080
+    const search = new URLSearchParams(q).toString()
+    return c.html(
+      `<!doctype html><html><head><meta charset="utf-8">
+<style>
+  html,body{margin:0;padding:0;background:#020009;overflow:hidden}
+  canvas{display:block;width:${width}px;height:${height}px}
+</style></head><body>
+<canvas id="render-canvas" width="${width}" height="${height}"></canvas>
+<script src="/static/vfx-intro.js?v=${ASSET_VERSION}"></script>
+<script src="/static/render-engine.js?v=${ASSET_VERSION}"></script>
+</body></html>`
+    )
+  })
 
   app.get('/health', (c) => c.text('ok'))
 

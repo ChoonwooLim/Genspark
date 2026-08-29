@@ -450,6 +450,31 @@ export function PreviewPage() {
               <span id="upload-label">서버 보관함에 저장</span>
             </button>
           </div>
+
+          {/* Server-side rendering. Works for imported prototypes too, which
+              the browser cannot capture from a sandboxed iframe. */}
+          <div id="render-panel" class="stage__controls" hidden>
+            <button id="render-mp4" type="button" class="stage-btn stage-btn--solid">
+              MP4 렌더링
+            </button>
+            <button id="render-png" type="button" class="stage-btn">
+              PNG 시퀀스 렌더링
+            </button>
+            <label class="stage-field">
+              <span class="mono-label">FPS</span>
+              <select id="render-fps" class="select select--on-dark select--slim">
+                <option value="24">24</option>
+                <option value="30" selected>30</option>
+                <option value="60">60</option>
+              </select>
+            </label>
+            <label class="stage-field">
+              <span class="mono-label">길이(초)</span>
+              <input id="render-duration" class="input input--on-dark" type="number" min="0.5" max="30" step="0.5" value="5" />
+            </label>
+          </div>
+
+          <p id="render-status" class="export-status__note" role="status" aria-live="polite"></p>
           <div id="export-status" class="export-status" role="status" aria-live="polite" hidden>
             <div class="export-status__row">
               <span id="export-status-text">프레임 준비 중</span>

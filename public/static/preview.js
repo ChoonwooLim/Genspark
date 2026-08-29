@@ -392,6 +392,138 @@
     }
   })();
 
+  /* ===== Server-side rendering ======================================
+   *
+   * The browser can only read pixels off our own canvas, so an imported
+   * prototype could never be exported from the page. Rendering happens on the
+   * server in a real browser instead, which covers both sources with one path.
+   */
+
+  const renderPanel = document.getElementById('render-panel');
+  const renderStatus = document.getElementById('render-status');
+  const renderMp4 = document.getElementById('render-mp4');
+  const renderPng = document.getElementById('render-png');
+  const renderFps = document.getElementById('render-fps');
+  const renderDuration = document.getElementById('render-duration');
+
+  let renderBusy = false;
+
+  const setRenderStatus = (text, type = 'info') => {
+    renderStatus.textContent = text;
+    renderStatus.dataset.type = type;
+  };
+
+  async function startRender(format) {
+    if (renderBusy) return;
+    const aspect = currentAspect();
+
+    const payload = {
+      format,
+      fps: Number(renderFps.value) || 30,
+      duration: Number(renderDuration.value) || 5,
+      width: aspect === 'portrait' ? 1080 : 1920,
+      height: aspect === 'portrait' ? 1920 : 1080,
+    };
+
+    if (active.kind === 'proto') {
+      const path = active.files[aspect] || active.files.landscape || active.files.portrait;
+      if (!path) throw new Error('이 컨셉에는 해당 화면비 파일이 없습니다.');
+      Object.assign(payload, { kind: 'proto', bundleId: active.bundleId, path, label: `${active.label} ${aspect === 'portrait' ? '9x16' : '16x9'}` });
+    } else {
+      const settings = currentSettings();
+      Object.assign(payload, {
+        kind: 'engine',
+        aspect,
+        glow: settings.glow,
+        energy: settings.energy,
+        projectId: settings.projectId || undefined,
+        label: `${settings.name || 'PLAZION'} ${aspect === 'portrait' ? '9x16' : '16x9'}`,
+      });
+    }
+
+    renderBusy = true;
+    renderMp4.disabled = true;
+    renderPng.disabled = true;
+    setRenderStatus('렌더 시작…');
+
+    try {
+      const started = await studioPost('/api/renders', payload);
+      const id = started.render.id;
+      setRenderStatus('서버에서 프레임 캡처 중… 창을 닫아도 계속 진행됩니다.');
+
+      // The job outlives this page, so this is a poll rather than a stream.
+      for (let attempt = 0; attempt < 300; attempt += 1) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const body = await fetch(`/api/renders/${id}`).then((r) => r.json());
+        const job = body.render;
+        if (!job) continue;
+        if (job.status === 'done') {
+          const size = window.PlazionCore ? window.PlazionCore.formatBytes(job.byteSize) : `${job.byteSize}B`;
+          setRenderStatus(
+            `완료 · ${job.frameCount}프레임 · ${size} — 보관함에서 받으세요`,
+            'success'
+          );
+          window.open(job.downloadUrl, '_blank', 'noopener');
+          return;
+        }
+        if (job.status === 'failed') throw new Error(job.error || '렌더에 실패했습니다.');
+      }
+      throw new Error('렌더가 시간 안에 끝나지 않았습니다. 보관함에서 상태를 확인하세요.');
+    } finally {
+      renderBusy = false;
+      renderMp4.disabled = false;
+      renderPng.disabled = false;
+    }
+  }
+
+  /** Same access-code flow the rest of the studio uses. */
+  async function studioPost(url, payload) {
+    const send = () => {
+      const token = sessionStorage.getItem('plazionStudioToken') || '';
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Studio-Token': token } : {}) },
+        body: JSON.stringify(payload),
+      });
+    };
+    let response = await send();
+    if (response.status === 401) {
+      const body = await response.json().catch(() => ({}));
+      if (body.code === 'STUDIO_AUTH_REQUIRED') {
+        const token = window.prompt('작업실 접근 코드를 입력하세요.') || '';
+        if (!token) throw new Error('접근 코드가 없어 취소되었습니다.');
+        sessionStorage.setItem('plazionStudioToken', token);
+        response = await send();
+      }
+    }
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) sessionStorage.removeItem('plazionStudioToken');
+      throw new Error(body.error || `요청 실패 (${response.status})`);
+    }
+    return body;
+  }
+
+  /** What the engine should be rendered with, mirrored from what is on screen. */
+  let engineSettings = { glow: 100, energy: 100, name: null, projectId: null };
+  const currentSettings = () => engineSettings;
+
+  renderMp4.addEventListener('click', () =>
+    startRender('mp4').catch((e) => setRenderStatus(e.message, 'error'))
+  );
+  renderPng.addEventListener('click', () =>
+    startRender('png').catch((e) => setRenderStatus(e.message, 'error'))
+  );
+
+  fetch('/api/renders/status')
+    .then((r) => r.json())
+    .then((s) => {
+      if (!s.enabled) return;
+      renderPanel.hidden = false;
+      setRenderStatus('MP4 또는 PNG 시퀀스를 서버에서 렌더링합니다.');
+    })
+    .catch(() => {});
+
   /* ===== Sources ===================================================
    *
    * Two different things can play here and they are not two views of one
@@ -561,6 +693,12 @@
         if (button) button.click();
       }
     }
+    engineSettings = {
+      glow: settings?.glow ?? 100,
+      energy: settings?.energy ?? 100,
+      name: name || null,
+      projectId: window.PlazionCore?.projectIdFromQuery() || null,
+    };
     if (name) exportStatusNote.textContent = `현재 로고: ${name} · 30fps · 3초 · 투명 PNG 90장`;
   }
 

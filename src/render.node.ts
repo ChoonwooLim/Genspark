@@ -54,6 +54,7 @@ type Job = {
   fps: number
   duration: number
   format: 'mp4' | 'png'
+  transparent: boolean
 }
 
 function rowToRender(row: any) {
@@ -133,6 +134,15 @@ async function captureFrames(job: Job): Promise<Buffer[]> {
     await page.goto(job.url, { waitUntil: 'load', timeout: 30_000 })
     // Fonts and the logo must be in before the first frame, or frame 0 is bare.
     await page.evaluate(() => (document as any).fonts?.ready).catch(() => {})
+
+    // The built-in engine draws to a canvas from requestAnimationFrame, which
+    // no amount of animation seeking reaches. Its render surface publishes a
+    // seek hook instead; wait for it before capturing.
+    const seekable = await page
+      .waitForFunction(() => (window as any).__plazionReady === true, null, { timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false)
+
     await page.waitForTimeout(300)
 
     const frameCount = Math.min(Math.round(job.duration * job.fps), MAX_FRAMES)
@@ -140,17 +150,21 @@ async function captureFrames(job: Job): Promise<Buffer[]> {
     const frames: Buffer[] = []
 
     for (let i = 0; i < frameCount; i += 1) {
-      await page.evaluate((timeMs) => {
-        for (const animation of document.getAnimations()) {
-          try {
-            animation.pause()
-            animation.currentTime = timeMs
-          } catch {
-            /* an animation may be finished or unseekable — leave it be */
+      if (seekable) {
+        await page.evaluate((seconds) => (window as any).__plazionSeek(seconds), (i * step) / 1000)
+      } else {
+        await page.evaluate((timeMs) => {
+          for (const animation of document.getAnimations()) {
+            try {
+              animation.pause()
+              animation.currentTime = timeMs
+            } catch {
+              /* an animation may be finished or unseekable — leave it be */
+            }
           }
-        }
-      }, i * step)
-      frames.push(await page.screenshot({ type: 'png' }))
+        }, i * step)
+      }
+      frames.push(await page.screenshot({ type: 'png', omitBackground: job.transparent }))
     }
     return frames
   } finally {
@@ -243,6 +257,7 @@ export async function createRenderApi() {
     if (!body) return c.json({ error: 'JSON 본문이 필요합니다.' }, 400)
 
     const format = body.format === 'png' ? 'png' : 'mp4'
+    const transparent = format === 'png' && body.transparent !== false && body.kind !== 'proto'
     const fps = Math.min(Math.max(Number(body.fps) || 30, 1), 60)
     const duration = Math.min(Math.max(Number(body.duration) || 3, 0.2), 30)
     const width = Math.round(Number(body.width) || 1920)
@@ -268,6 +283,9 @@ export async function createRenderApi() {
         glow: String(Number(body.glow) || 100),
         energy: String(Number(body.energy) || 100),
       })
+      // Transparency is only meaningful for a frame sequence — an MP4 has no
+      // alpha channel, and asking for one would just render onto black anyway.
+      if (transparent) params.set('transparent', '1')
       if (body.projectId) params.set('project', String(body.projectId))
       url = `${origin}/render/engine?${params}`
       kind = 'engine'
@@ -284,7 +302,7 @@ export async function createRenderApi() {
       [id, label, kind, format, width, height, fps, duration, token]
     )
 
-    const job: Job = { id, url, width, height, fps, duration, format }
+    const job: Job = { id, url, width, height, fps, duration, format, transparent }
     queue = queue.then(() =>
       execute(job, storedName).catch(async (error) => {
         console.error('[render] failed:', error?.message)

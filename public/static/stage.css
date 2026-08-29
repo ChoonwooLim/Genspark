@@ -136,3 +136,19 @@
 .select--on-dark option { background: #14141a; color: #fff; }
 
 #proto-view { margin-inline: auto; max-width: 900px; }
+
+.stage-field { display: inline-grid; gap: 4px; }
+.stage-field .mono-label { color: rgba(255, 255, 255, 0.45); }
+.select--slim { min-width: 90px; }
+.input--on-dark {
+  width: 110px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--r-xs);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--on-dark);
+  font-family: var(--sans);
+  font-size: 14px;
+}
+#render-status[data-type='success'] { color: var(--pale-green); }
+#render-status[data-type='error'] { color: var(--coral); }
