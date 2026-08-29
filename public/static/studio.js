@@ -8,8 +8,13 @@
     dropzone: document.getElementById('logo-dropzone'),
     sourceModeUpload: document.getElementById('source-mode-upload'),
     sourceModeAi: document.getElementById('source-mode-ai'),
+    sourceModeImport: document.getElementById('source-mode-import'),
     uploadPanel: document.getElementById('upload-source-panel'),
     aiPanel: document.getElementById('ai-source-panel'),
+    importPanel: document.getElementById('import-source-panel'),
+    pasteZone: document.getElementById('genspark-paste-zone'),
+    importUrl: document.getElementById('genspark-import-url'),
+    importButton: document.getElementById('import-genspark-btn'),
     sourceReady: document.getElementById('source-ready-status'),
     brandName: document.getElementById('ai-brand-name'),
     aiPrompt: document.getElementById('ai-logo-prompt'),
@@ -53,6 +58,7 @@
   let currentLogoUrl = '/static/plazion_logo.png';
   let sourceConfirmed = false;
   let currentProjectId = null;
+  let activeSourceMode = 'upload';
   let projects = [];
   let presets = [DEFAULT_PRESET];
   let storageMode = 'local';
@@ -123,13 +129,18 @@
   }
 
   function setSourceMode(mode) {
-    const useAi = mode === 'ai';
-    els.sourceModeUpload.classList.toggle('is-active', !useAi);
-    els.sourceModeAi.classList.toggle('is-active', useAi);
-    els.sourceModeUpload.setAttribute('aria-selected', String(!useAi));
-    els.sourceModeAi.setAttribute('aria-selected', String(useAi));
-    els.uploadPanel.hidden = useAi;
-    els.aiPanel.hidden = !useAi;
+    activeSourceMode = mode;
+    const modes = {
+      upload: [els.sourceModeUpload, els.uploadPanel],
+      ai: [els.sourceModeAi, els.aiPanel],
+      import: [els.sourceModeImport, els.importPanel],
+    };
+    Object.entries(modes).forEach(([name, [button, panel]]) => {
+      const active = name === mode;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', String(active));
+      panel.hidden = !active;
+    });
   }
 
   function setSourceReady(message, mode) {
@@ -139,7 +150,7 @@
 
   function resetSourceReady() {
     els.sourceReady.className = 'source-ready-status';
-    els.sourceReady.innerHTML = '<i class="fa-solid fa-circle-info"></i> 아직 새 로고를 선택하지 않았습니다. 위 두 방식 중 하나를 완료하세요.';
+    els.sourceReady.innerHTML = '<i class="fa-solid fa-circle-info"></i> 아직 새 로고를 선택하지 않았습니다. 위 세 방식 중 하나를 완료하세요.';
   }
 
   async function fetchJson(url, options = {}) {
@@ -377,6 +388,68 @@
     showStatus('프로젝트를 삭제했습니다.', 'success');
   }
 
+  async function applyPastedGensparkImage(file) {
+    if (!file?.type?.startsWith('image/')) throw new Error('클립보드에서 이미지 데이터를 찾지 못했습니다. Genspark 결과 이미지를 먼저 복사해 주세요.');
+    await setLogo(file, `genspark-pasted-${new Date().toISOString().slice(0, 10)}.png`, 'Genspark Imported Logo');
+    if (!els.projectName.value.trim() || els.projectName.value === '새 로고 프로젝트' || els.projectName.value === 'PLAZION VFX Intro') {
+      els.projectName.value = 'Genspark Logo VFX Intro';
+    }
+    setSourceReady('클립보드의 Genspark 결과 이미지가 현재 로고로 적용되었습니다.', 'import');
+    showStatus('Genspark 결과를 붙여 넣었습니다. 2단계 설정을 조정한 뒤 프로젝트를 저장하세요.', 'success');
+  }
+
+  async function importGensparkResult() {
+    const sourceUrl = els.importUrl.value.trim();
+    if (!sourceUrl) throw new Error('Genspark 결과 이미지 주소를 붙여 넣어 주세요.');
+
+    const requestImport = (accessToken) => fetch('/api/ai/import-genspark-image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { 'X-Studio-Token': accessToken } : {}),
+      },
+      body: JSON.stringify({ url: sourceUrl }),
+    });
+
+    let accessToken = sessionStorage.getItem('plazionStudioToken') || '';
+    let response = await requestImport(accessToken);
+    if (response.status === 401) {
+      const authBody = await response.json().catch(() => ({}));
+      if (authBody.code === 'STUDIO_AUTH_REQUIRED') {
+        accessToken = window.prompt('Genspark 결과 가져오기 접근 코드를 입력하세요.') || '';
+        if (!accessToken) throw new Error('결과 가져오기가 취소되었습니다.');
+        sessionStorage.setItem('plazionStudioToken', accessToken);
+        response = await requestImport(accessToken);
+      }
+    }
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      if (response.status === 401) sessionStorage.removeItem('plazionStudioToken');
+      throw new Error(body.error || 'Genspark 결과를 가져오지 못했습니다.');
+    }
+
+    const blob = await response.blob();
+    const filename = `genspark-import-${new Date().toISOString().slice(0, 10)}.png`;
+    await setLogo(blob, filename, 'Genspark Imported Logo');
+    if (!els.projectName.value.trim() || els.projectName.value === '새 로고 프로젝트' || els.projectName.value === 'PLAZION VFX Intro') {
+      els.projectName.value = 'Genspark Logo VFX Intro';
+    }
+    setSourceReady('Genspark 내부 UI에서 만든 결과가 현재 로고로 적용되었습니다.', 'import');
+    showStatus('Genspark 결과를 가져왔습니다. 2단계 설정을 조정한 뒤 프로젝트를 저장하세요.', 'success');
+  }
+
+  async function runGensparkImport() {
+    setBusy(els.importButton, true, 'Genspark 결과 가져오는 중…');
+    showStatus('Genspark 결과 이미지를 확인하고 있습니다.', 'info');
+    try {
+      await importGensparkResult();
+    } catch (error) {
+      showStatus(error.message, 'error');
+    } finally {
+      setBusy(els.importButton, false);
+    }
+  }
+
   async function generateLogo() {
     const brandName = els.brandName.value.trim();
     const prompt = els.aiPrompt.value.trim();
@@ -439,6 +512,7 @@
     els.aiPalette.selectedIndex = 0;
     els.aiStyle.selectedIndex = 0;
     els.aiOriginality.value = 'bold';
+    els.importUrl.value = '';
     els.presetSelect.value = DEFAULT_PRESET.id;
     applySettings(DEFAULT_PRESET);
     setSourceMode('upload');
@@ -452,6 +526,23 @@
 
   els.sourceModeUpload.addEventListener('click', () => setSourceMode('upload'));
   els.sourceModeAi.addEventListener('click', () => setSourceMode('ai'));
+  els.sourceModeImport.addEventListener('click', () => setSourceMode('import'));
+  els.importButton.addEventListener('click', runGensparkImport);
+  els.importUrl.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      runGensparkImport();
+    }
+  });
+  els.pasteZone.addEventListener('click', () => els.pasteZone.focus());
+  window.addEventListener('paste', (event) => {
+    if (activeSourceMode !== 'import') return;
+    const imageItem = Array.from(event.clipboardData?.items || []).find((item) => item.type.startsWith('image/'));
+    const file = imageItem?.getAsFile();
+    if (!file) return;
+    event.preventDefault();
+    applyPastedGensparkImage(file).catch((error) => showStatus(error.message, 'error'));
+  });
 
   els.upload.addEventListener('change', () => {
     const file = els.upload.files?.[0];
@@ -535,4 +626,12 @@
   });
 
   Promise.all([loadProjects(), loadPresets()]).catch(() => setStorageMode('local', '브라우저 임시 저장 모드'));
+
+  const importFromQuery = new URLSearchParams(window.location.search).get('genspark_image');
+  if (importFromQuery) {
+    setSourceMode('import');
+    els.importUrl.value = importFromQuery;
+    window.history.replaceState({}, '', `${window.location.pathname}#workspace-section`);
+    runGensparkImport();
+  }
 })();

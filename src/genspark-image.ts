@@ -108,6 +108,106 @@ function buildPrompt({
   ].filter(Boolean).join(' ')
 }
 
+function hasValidStudioToken(c: Context, config: GensparkConfig) {
+  const env = c.env as Record<string, string | undefined> | undefined
+  const requiredAccessToken = config.accessToken || env?.STUDIO_ADMIN_TOKEN
+  return !requiredAccessToken || c.req.header('X-Studio-Token') === requiredAccessToken
+}
+
+function isAllowedGensparkHost(hostname: string) {
+  const normalized = hostname.toLowerCase()
+  return normalized === 'genspark.ai' || normalized.endsWith('.genspark.ai')
+}
+
+export async function importGensparkImage(
+  c: Context,
+  config: GensparkConfig,
+) {
+  if (!hasValidStudioToken(c, config)) {
+    return c.json({
+      error: 'Genspark 결과 가져오기 접근 코드가 필요합니다.',
+      code: 'STUDIO_AUTH_REQUIRED',
+    }, 401)
+  }
+
+  const body = await c.req.json<{ url?: string }>().catch(() => null)
+  if (!body?.url) return c.json({ error: 'Genspark 이미지 주소를 입력해 주세요.' }, 400)
+
+  let sourceUrl: URL
+  try {
+    sourceUrl = new URL(body.url.trim())
+  } catch {
+    return c.json({ error: '올바른 Genspark 이미지 주소가 아닙니다.' }, 400)
+  }
+
+  if (sourceUrl.protocol !== 'https:' || !isAllowedGensparkHost(sourceUrl.hostname)) {
+    return c.json({
+      error: '보안을 위해 https://*.genspark.ai 이미지 주소만 가져올 수 있습니다.',
+      code: 'GENSPARK_URL_NOT_ALLOWED',
+    }, 400)
+  }
+
+  const env = c.env as Record<string, string | undefined> | undefined
+  const apiKey = config.apiKey || env?.GSK_API_KEY
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 60 * 1000)
+
+  try {
+    const response = await fetch(sourceUrl, {
+      headers: {
+        Accept: 'image/png,image/webp,image/jpeg,image/svg+xml;q=0.8,*/*;q=0.1',
+        ...(apiKey ? { 'X-Api-Key': apiKey } : {}),
+      },
+      redirect: 'follow',
+      signal: controller.signal,
+    })
+
+    if (response.status === 401 || response.status === 403) {
+      return c.json({
+        error: '이 링크는 Genspark 로그인 세션이 필요한 비공개 공유 링크입니다. 생성 결과에서 “이미지 주소 복사”로 얻은 직접 이미지 주소를 사용하거나 이미지를 다운로드해 업로드해 주세요.',
+        code: 'GENSPARK_LINK_PRIVATE',
+      }, 422)
+    }
+    if (!response.ok) {
+      return c.json({ error: `Genspark 이미지를 가져오지 못했습니다. (${response.status})` }, 502)
+    }
+
+    const contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
+    if (!contentType.startsWith('image/')) {
+      return c.json({
+        error: '입력한 주소가 이미지 파일이 아닙니다. Genspark 결과 이미지에서 “이미지 주소 복사”를 사용해 주세요.',
+        code: 'GENSPARK_URL_NOT_IMAGE',
+      }, 422)
+    }
+
+    const declaredSize = Number(response.headers.get('content-length') || 0)
+    if (declaredSize > 20 * 1024 * 1024) {
+      return c.json({ error: '가져올 이미지는 20MB 이하여야 합니다.' }, 413)
+    }
+
+    const bytes = await response.arrayBuffer()
+    if (bytes.byteLength > 20 * 1024 * 1024) {
+      return c.json({ error: '가져올 이미지는 20MB 이하여야 합니다.' }, 413)
+    }
+
+    return new Response(bytes, {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': String(bytes.byteLength),
+        'Cache-Control': 'no-store',
+        'X-Imported-From': sourceUrl.hostname,
+      },
+    })
+  } catch (error) {
+    const message = error instanceof Error && error.name === 'AbortError'
+      ? 'Genspark 이미지 가져오기 시간이 초과되었습니다.'
+      : 'Genspark 이미지 가져오기 중 오류가 발생했습니다.'
+    return c.json({ error: message }, 502)
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export async function generateLogoWithGenspark(
   c: Context,
   config: GensparkConfig,

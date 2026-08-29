@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import { etag } from 'hono/etag'
 import { renderer } from './renderer'
-import { generateLogoWithGenspark, type GensparkConfig } from './genspark-image'
+import { generateLogoWithGenspark, importGensparkImage, type GensparkConfig } from './genspark-image'
 
 type AppOptions = {
   genspark?: GensparkConfig
@@ -40,6 +40,7 @@ export function createApp(options: AppOptions = {}) {
   app.use(renderer)
 
   app.post('/api/ai/generate-logo', (c) => generateLogoWithGenspark(c, options.genspark || {}))
+  app.post('/api/ai/import-genspark-image', (c) => importGensparkImage(c, options.genspark || {}))
 
   // Storage API discovery stubs. The Orbitron persistence service can replace
   // these routes with PostgreSQL/filesystem-backed implementations while the
@@ -169,6 +170,9 @@ export function createApp(options: AppOptions = {}) {
                   <button id="source-mode-ai" class="source-mode__button" type="button" role="tab" aria-selected="false">
                     <i class="fa-solid fa-wand-magic-sparkles"></i><span><strong>새 로고 만들기</strong><small>현재 PLAZION과 무관한 시안</small></span>
                   </button>
+                  <button id="source-mode-import" class="source-mode__button" type="button" role="tab" aria-selected="false">
+                    <i class="fa-solid fa-link"></i><span><strong>Genspark 결과 가져오기</strong><small>내부 UI에서 만든 이미지 연결</small></span>
+                  </button>
                 </div>
 
                 <div id="upload-source-panel" class="source-panel">
@@ -249,7 +253,32 @@ export function createApp(options: AppOptions = {}) {
                   </div>
                 </div>
 
-                <p id="source-ready-status" class="source-ready-status"><i class="fa-solid fa-circle-info"></i> 아직 새 로고를 선택하지 않았습니다. 위 두 방식 중 하나를 완료하세요.</p>
+                <div id="import-source-panel" class="source-panel" hidden>
+                  <p class="source-instruction"><strong>1-C.</strong> Genspark 내부 UI에서 만든 결과 이미지의 주소를 붙여 넣으면 현재 로고로 자동 적용합니다.</p>
+                  <div class="form-stack">
+                    <div id="genspark-paste-zone" class="genspark-paste-zone" tabindex="0" role="button" aria-label="Genspark 결과 이미지 붙여넣기">
+                      <i class="fa-regular fa-paste"></i>
+                      <span><strong>가장 쉬운 방법: 이미지 복사 후 Ctrl+V</strong><small>Genspark 결과 이미지에서 복사한 다음 이 영역을 클릭하고 붙여 넣으세요.</small></span>
+                    </div>
+                    <div class="source-divider"><span>또는 이미지 주소</span></div>
+                    <label class="field-label" for="genspark-import-url">Genspark 결과 이미지 주소</label>
+                    <input id="genspark-import-url" class="text-field" type="url" inputmode="url" placeholder="https://www.genspark.ai/..." autocomplete="off" />
+                    <button id="import-genspark-btn" class="action-btn action-btn--import" type="button">
+                      <i class="fa-solid fa-cloud-arrow-down"></i><span>결과 가져와서 적용</span>
+                    </button>
+                    <div class="import-help">
+                      <strong>주소 복사 방법</strong>
+                      <ol>
+                        <li>Genspark 내부 UI에서 로고를 생성합니다.</li>
+                        <li>완성 이미지에서 <b>이미지 주소 복사</b>를 선택합니다.</li>
+                        <li>위 칸에 붙여 넣고 가져오기 버튼을 누릅니다.</li>
+                      </ol>
+                      <p><code>/api/files/s/...</code> 공유 링크가 비공개로 표시되면 이미지를 다운로드한 뒤 <b>내 로고 사용</b>에서 업로드하세요.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <p id="source-ready-status" class="source-ready-status"><i class="fa-solid fa-circle-info"></i> 아직 새 로고를 선택하지 않았습니다. 위 세 방식 중 하나를 완료하세요.</p>
               </article>
 
               <article class="workspace-card settings-card">
@@ -455,9 +484,9 @@ export function createApp(options: AppOptions = {}) {
         </footer>
 
         <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-        <script src="/static/vfx-intro.js?v=20260829-studio-3"></script>
-        <script src="/static/app.js?v=20260829-studio-3"></script>
-        <script src="/static/studio.js?v=20260829-studio-3"></script>
+        <script src="/static/vfx-intro.js?v=20260829-studio-4"></script>
+        <script src="/static/app.js?v=20260829-studio-4"></script>
+        <script src="/static/studio.js?v=20260829-studio-4"></script>
       </div>
     )
   })

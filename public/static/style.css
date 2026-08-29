@@ -472,7 +472,7 @@ a { color: var(--purple-accent); text-decoration: none; }
 
 .source-mode {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 16px;
 }
@@ -630,9 +630,45 @@ textarea.text-field { resize: vertical; min-height: 90px; }
 .action-btn:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-1px); }
 .action-btn:disabled { opacity: 0.55; cursor: wait; }
 .action-btn--ai { background: linear-gradient(135deg, #6c38ee, #a35df6); box-shadow: 0 10px 26px -12px rgba(163, 93, 246, 0.8); }
+.action-btn--import { background: linear-gradient(135deg, #285f9b, #42a2c7); box-shadow: 0 10px 26px -12px rgba(66, 162, 199, 0.72); }
 .action-btn--save { margin-top: 4px; background: linear-gradient(135deg, #6946e8, #8a59ff); }
 .field-help { margin: -2px 0 0; color: var(--text-dim); font-size: 10.5px; line-height: 1.5; }
 .field-help code { color: var(--purple-accent); }
+
+.genspark-paste-zone {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border: 1px dashed rgba(66, 162, 199, 0.48);
+  border-radius: 11px;
+  background: rgba(38, 108, 145, 0.08);
+  color: var(--text-main);
+  cursor: pointer;
+  outline: none;
+}
+.genspark-paste-zone:hover,
+.genspark-paste-zone:focus { border-color: #8fd9ef; background: rgba(38, 108, 145, 0.16); }
+.genspark-paste-zone > i { color: #8fd9ef; font-size: 20px; text-align: center; }
+.genspark-paste-zone span { display: flex; flex-direction: column; gap: 4px; }
+.genspark-paste-zone strong { font-size: 11px; }
+.genspark-paste-zone small { color: var(--text-dim); font-size: 9.5px; line-height: 1.45; }
+
+.import-help {
+  padding: 12px 13px;
+  border: 1px solid rgba(66, 162, 199, 0.25);
+  border-radius: 10px;
+  background: rgba(38, 108, 145, 0.08);
+  color: var(--text-dim);
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+.import-help > strong { color: #8fd9ef; }
+.import-help ol { margin: 7px 0 8px; padding-left: 19px; }
+.import-help li + li { margin-top: 3px; }
+.import-help p { margin: 0; }
+.import-help code { color: #8fd9ef; }
 
 .setting-block { padding: 11px 12px; border: 1px solid var(--border-soft); border-radius: 10px; background: rgba(2, 0, 9, 0.36); }
 .range-heading { display: flex; justify-content: space-between; margin-bottom: 9px; color: #c7bce3; font: 11px/1 var(--mono); }

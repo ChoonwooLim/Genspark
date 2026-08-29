@@ -20,7 +20,7 @@ export const renderer = jsxRenderer(({ children }) => {
           href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
-        <link href="/static/style.css?v=20260829-studio-3" rel="stylesheet" />
+        <link href="/static/style.css?v=20260829-studio-4" rel="stylesheet" />
       </head>
       <body>{children}</body>
     </html>
