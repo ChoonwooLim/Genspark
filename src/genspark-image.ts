@@ -20,7 +20,11 @@ export type GensparkConfig = {
 type GenerateLogoRequest = {
   prompt?: string
   brandName?: string
+  logoType?: string
+  palette?: string
   style?: string
+  originality?: 'safe' | 'balanced' | 'bold'
+  avoid?: string
   model?: string
 }
 
@@ -67,17 +71,40 @@ function findImageUrl(value: unknown): string | null {
   return null
 }
 
-function buildPrompt({ prompt, brandName, style }: GenerateLogoRequest) {
+function buildPrompt({
+  prompt,
+  brandName,
+  logoType,
+  palette,
+  style,
+  originality,
+  avoid,
+}: GenerateLogoRequest) {
   const cleanPrompt = prompt?.trim() || ''
   const cleanName = brandName?.trim() || ''
-  const cleanStyle = style?.trim() || 'minimal futuristic symbol'
+  const cleanType = logoType?.trim() || 'standalone abstract symbol with no lettering'
+  const cleanPalette = palette?.trim() || 'a distinctive color palette selected for this new brand'
+  const cleanStyle = style?.trim() || 'minimal flat geometric identity'
+  const cleanAvoid = avoid?.trim() || ''
+  const originalityDirection = originality === 'safe'
+    ? 'Keep the concept clear and commercially safe, while remaining original.'
+    : originality === 'balanced'
+      ? 'Balance immediate readability with a distinctive original concept.'
+      : 'Explore a bold, unexpected concept with a silhouette unlike common technology logos.'
+
   return [
-    'Create one professional brand logo asset on a fully transparent background.',
-    cleanName ? `Brand name: "${cleanName}".` : '',
-    `Visual direction: ${cleanStyle}.`,
-    cleanPrompt,
-    'Centered composition, crisp silhouette, production-ready edges, no mockup, no paper, no wall, no extra objects.',
-    'Return a square logo image with transparent alpha. Preserve exact brand text spelling if text is included.',
+    'Start from a blank slate and create one entirely new professional brand identity logo.',
+    'Do not imitate, reconstruct, or reuse the existing PLAZION logo, its purple metallic treatment, Z-flame silhouette, wing shape, voxel styling, or any logo that may be visible elsewhere in the product interface.',
+    `New brand name: "${cleanName}". Never write "PLAZION" unless that is exactly the new brand name.`,
+    `Logo construction: ${cleanType}.`,
+    `Design language: ${cleanStyle}.`,
+    `Color direction: ${cleanPalette}.`,
+    originalityDirection,
+    cleanPrompt ? `Brand brief: ${cleanPrompt}` : '',
+    cleanAvoid ? `Strictly avoid: ${cleanAvoid}.` : '',
+    'Create a flat logo asset, not a VFX frame. No glow, no metallic 3D extrusion, no animation effects, no mockup, no paper, no wall, no extra objects.',
+    'Use a centered composition, crisp silhouette, production-ready edges, and a fully transparent background.',
+    'Return one square logo image with transparent alpha. Preserve the exact new brand spelling only when the chosen logo construction includes lettering.',
   ].filter(Boolean).join(' ')
 }
 

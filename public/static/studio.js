@@ -6,9 +6,18 @@
     newProject: document.getElementById('new-project-btn'),
     upload: document.getElementById('logo-upload'),
     dropzone: document.getElementById('logo-dropzone'),
+    sourceModeUpload: document.getElementById('source-mode-upload'),
+    sourceModeAi: document.getElementById('source-mode-ai'),
+    uploadPanel: document.getElementById('upload-source-panel'),
+    aiPanel: document.getElementById('ai-source-panel'),
+    sourceReady: document.getElementById('source-ready-status'),
     brandName: document.getElementById('ai-brand-name'),
     aiPrompt: document.getElementById('ai-logo-prompt'),
+    aiType: document.getElementById('ai-logo-type'),
+    aiPalette: document.getElementById('ai-logo-palette'),
     aiStyle: document.getElementById('ai-logo-style'),
+    aiOriginality: document.getElementById('ai-logo-originality'),
+    aiAvoid: document.getElementById('ai-logo-avoid'),
     aiModel: document.getElementById('ai-logo-model'),
     generate: document.getElementById('generate-logo-btn'),
     projectName: document.getElementById('project-name'),
@@ -42,6 +51,7 @@
 
   let currentLogoBlob = null;
   let currentLogoUrl = '/static/plazion_logo.png';
+  let sourceConfirmed = false;
   let currentProjectId = null;
   let projects = [];
   let presets = [DEFAULT_PRESET];
@@ -110,6 +120,26 @@
     storageMode = mode;
     els.storage.className = `storage-indicator is-${mode}`;
     els.storage.innerHTML = `<i class="fa-solid fa-circle"></i> ${message}`;
+  }
+
+  function setSourceMode(mode) {
+    const useAi = mode === 'ai';
+    els.sourceModeUpload.classList.toggle('is-active', !useAi);
+    els.sourceModeAi.classList.toggle('is-active', useAi);
+    els.sourceModeUpload.setAttribute('aria-selected', String(!useAi));
+    els.sourceModeAi.setAttribute('aria-selected', String(useAi));
+    els.uploadPanel.hidden = useAi;
+    els.aiPanel.hidden = !useAi;
+  }
+
+  function setSourceReady(message, mode) {
+    els.sourceReady.className = `source-ready-status is-ready is-${mode}`;
+    els.sourceReady.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${message}`;
+  }
+
+  function resetSourceReady() {
+    els.sourceReady.className = 'source-ready-status';
+    els.sourceReady.innerHTML = '<i class="fa-solid fa-circle-info"></i> 아직 새 로고를 선택하지 않았습니다. 위 두 방식 중 하나를 완료하세요.';
   }
 
   async function fetchJson(url, options = {}) {
@@ -189,12 +219,14 @@
     currentLogoBlob = blob;
     currentLogoUrl = URL.createObjectURL(blob);
     await app.intro.setLogoSource(currentLogoUrl);
+    sourceConfirmed = true;
     if (previousUrl.startsWith('blob:')) URL.revokeObjectURL(previousUrl);
     els.dropzone.classList.add('has-file');
     els.dropzone.querySelector('strong').textContent = filename || '로고 준비 완료';
     els.dropzone.querySelector('span').textContent = `${Math.max(1, Math.round(blob.size / 1024))} KB · 미리보기에 적용됨`;
     if (name && !els.projectName.value.trim()) els.projectName.value = name;
-    showStatus('로고가 미리보기에 적용되었습니다.', 'success');
+    setSourceReady(`${filename || '새 로고'}가 미리보기 소스로 확정되었습니다.`, 'logo');
+    showStatus('새 로고가 미리보기에 적용되었습니다. 다음으로 애니메이션 설정을 조정하세요.', 'success');
   }
 
   async function ensureCurrentBlob() {
@@ -229,6 +261,7 @@
 
   async function saveProject() {
     const name = els.projectName.value.trim();
+    if (!sourceConfirmed) throw new Error('먼저 1단계에서 새 로고를 업로드하거나 AI로 생성해 주세요.');
     if (!name) throw new Error('프로젝트 이름을 입력해 주세요.');
     const blob = await ensureCurrentBlob();
     const settings = getSettings();
@@ -347,8 +380,17 @@
   async function generateLogo() {
     const brandName = els.brandName.value.trim();
     const prompt = els.aiPrompt.value.trim();
-    if (!brandName && !prompt) throw new Error('브랜드 이름 또는 로고 설명을 입력해 주세요.');
-    const payload = { brandName, prompt, style: els.aiStyle.value, model: els.aiModel.value };
+    if (!brandName) throw new Error('새 브랜드 이름을 입력해 주세요. 기존 PLAZION과 다른 이름을 권장합니다.');
+    const payload = {
+      brandName,
+      prompt,
+      logoType: els.aiType.value,
+      palette: els.aiPalette.value,
+      style: els.aiStyle.value,
+      originality: els.aiOriginality.value,
+      avoid: els.aiAvoid.value.trim(),
+      model: els.aiModel.value,
+    };
 
     const requestGeneration = (accessToken) => fetch('/api/ai/generate-logo', {
       method: 'POST',
@@ -376,24 +418,40 @@
       throw new Error(body.setup || body.error || 'AI 로고 생성에 실패했습니다.');
     }
     const blob = await response.blob();
-    await setLogo(blob, `${brandName || 'genspark-logo'}.png`, brandName || 'AI Logo');
-    if (brandName) els.projectName.value = `${brandName} VFX Intro`;
-    showStatus('Genspark AI 로고 생성이 완료되었습니다. 설정 후 프로젝트를 저장하세요.', 'success');
+    await setLogo(blob, `${brandName}-ai-logo.png`, brandName);
+    els.projectName.value = `${brandName} VFX Intro`;
+    setSourceReady(`“${brandName}” AI 시안이 새 로고로 확정되었습니다. 마음에 들지 않으면 다시 생성하세요.`, 'ai');
+    showStatus('새 AI 로고가 미리보기에 적용되었습니다. 이제 2단계 애니메이션 설정으로 이동하세요.', 'success');
   }
 
-  els.newProject.addEventListener('click', () => {
+  els.newProject.addEventListener('click', async () => {
     currentProjectId = null;
+    sourceConfirmed = false;
+    if (currentLogoUrl.startsWith('blob:')) URL.revokeObjectURL(currentLogoUrl);
+    currentLogoBlob = null;
+    currentLogoUrl = '/static/plazion_logo.png';
+    await app.intro.setLogoSource(currentLogoUrl);
     els.projectName.value = '새 로고 프로젝트';
     els.brandName.value = '';
     els.aiPrompt.value = '';
+    els.aiAvoid.value = '';
+    els.aiType.selectedIndex = 0;
+    els.aiPalette.selectedIndex = 0;
+    els.aiStyle.selectedIndex = 0;
+    els.aiOriginality.value = 'bold';
     els.presetSelect.value = DEFAULT_PRESET.id;
     applySettings(DEFAULT_PRESET);
+    setSourceMode('upload');
+    resetSourceReady();
     els.dropzone.classList.remove('has-file');
     els.dropzone.querySelector('strong').textContent = '로고 파일을 놓거나 선택';
     els.dropzone.querySelector('span').textContent = 'PNG · SVG · WEBP · JPG / 투명 PNG 권장';
     document.getElementById('workspace-section').scrollIntoView({ behavior: 'smooth' });
     showStatus('새 프로젝트가 준비되었습니다. 로고를 업로드하거나 AI로 생성하세요.', 'info');
   });
+
+  els.sourceModeUpload.addEventListener('click', () => setSourceMode('upload'));
+  els.sourceModeAi.addEventListener('click', () => setSourceMode('ai'));
 
   els.upload.addEventListener('change', () => {
     const file = els.upload.files?.[0];
@@ -452,8 +510,12 @@
     app.restart();
     document.getElementById('stage-section').scrollIntoView({ behavior: 'smooth' });
   });
-  els.sequence.addEventListener('click', () => app.exportSequence());
+  els.sequence.addEventListener('click', () => {
+    if (!sourceConfirmed) return showStatus('먼저 1단계에서 사용할 새 로고를 확정해 주세요.', 'error');
+    app.exportSequence();
+  });
   els.downloadLogo.addEventListener('click', async () => {
+    if (!sourceConfirmed) return showStatus('먼저 1단계에서 사용할 새 로고를 확정해 주세요.', 'error');
     try { await downloadProjectLogo({ name: els.projectName.value || 'logo', logoBlob: await ensureCurrentBlob() }); } catch (error) { showStatus(error.message, 'error'); }
   });
   els.librarySearch.addEventListener('input', renderLibrary);

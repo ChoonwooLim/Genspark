@@ -159,32 +159,80 @@ export function createApp(options: AppOptions = {}) {
               <article class="workspace-card source-card">
                 <div class="card-heading">
                   <span class="step-index">01</span>
-                  <div><h3>로고 소스</h3><p>파일 업로드 또는 AI 생성</p></div>
+                  <div><h3>새 로고 선택</h3><p>기존 파일 또는 완전히 새로운 AI 시안</p></div>
                 </div>
 
-                <label id="logo-dropzone" class="logo-dropzone" for="logo-upload">
-                  <input id="logo-upload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
-                  <i class="fa-solid fa-cloud-arrow-up"></i>
-                  <strong>로고 파일을 놓거나 선택</strong>
-                  <span>PNG · SVG · WEBP · JPG / 투명 PNG 권장</span>
-                </label>
+                <div class="source-mode" role="tablist" aria-label="로고 제작 방식 선택">
+                  <button id="source-mode-upload" class="source-mode__button is-active" type="button" role="tab" aria-selected="true">
+                    <i class="fa-solid fa-upload"></i><span><strong>내 로고 사용</strong><small>가지고 있는 파일 업로드</small></span>
+                  </button>
+                  <button id="source-mode-ai" class="source-mode__button" type="button" role="tab" aria-selected="false">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i><span><strong>새 로고 만들기</strong><small>현재 PLAZION과 무관한 시안</small></span>
+                  </button>
+                </div>
 
-                <div class="source-divider"><span>또는 Genspark AI</span></div>
-                <div class="form-stack">
-                  <label class="field-label" for="ai-brand-name">브랜드 이름</label>
-                  <input id="ai-brand-name" class="text-field" type="text" placeholder="예: PLAZION" maxlength="80" />
-                  <label class="field-label" for="ai-logo-prompt">로고 설명</label>
-                  <textarea id="ai-logo-prompt" class="text-field" rows="4" placeholder="브랜드 성격, 심볼, 컬러와 분위기를 설명하세요."></textarea>
-                  <div class="form-row">
-                    <label><span class="field-label">스타일</span>
-                      <select id="ai-logo-style" class="text-field">
-                        <option value="futuristic metallic emblem">퓨처 메탈릭</option>
-                        <option value="minimal geometric monogram">미니멀 모노그램</option>
-                        <option value="premium luxury wordmark">프리미엄 워드마크</option>
-                        <option value="bold esports mascot symbol">이스포츠 심볼</option>
-                        <option value="friendly modern tech mark">모던 테크</option>
-                      </select>
-                    </label>
+                <div id="upload-source-panel" class="source-panel">
+                  <p class="source-instruction"><strong>1-A.</strong> 애니메이션에 사용할 로고 파일을 선택하세요.</p>
+                  <label id="logo-dropzone" class="logo-dropzone" for="logo-upload">
+                    <input id="logo-upload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <strong>로고 파일을 놓거나 선택</strong>
+                    <span>PNG · SVG · WEBP · JPG / 투명 PNG 권장</span>
+                  </label>
+                </div>
+
+                <div id="ai-source-panel" class="source-panel" hidden>
+                  <p class="source-instruction"><strong>1-B.</strong> 기존 PLAZION을 참고하지 않고 새로운 브랜드 시안을 생성합니다.</p>
+                  <div class="form-stack">
+                    <label class="field-label" for="ai-brand-name">새 브랜드 이름 <span class="required-mark">필수</span></label>
+                    <input id="ai-brand-name" class="text-field" type="text" placeholder="예: NOVA LAB" maxlength="80" />
+
+                    <div class="form-row">
+                      <label><span class="field-label">로고 구성</span>
+                        <select id="ai-logo-type" class="text-field">
+                          <option value="standalone abstract symbol with no lettering">심볼만</option>
+                          <option value="distinctive monogram built from the brand initials">이니셜 모노그램</option>
+                          <option value="clean wordmark with custom typography">브랜드 글자형</option>
+                          <option value="symbol plus a separate clean wordmark">심볼 + 글자</option>
+                        </select>
+                      </label>
+                      <label><span class="field-label">색상 방향</span>
+                        <select id="ai-logo-palette" class="text-field">
+                          <option value="unexpected bold colors chosen for this brand, explicitly avoid purple">새로운 색상 · 보라색 제외</option>
+                          <option value="strict black and white monochrome">블랙 &amp; 화이트</option>
+                          <option value="warm orange, coral and deep navy">오렌지 · 코랄</option>
+                          <option value="fresh green, teal and cream">그린 · 틸</option>
+                          <option value="electric cyan, lime and charcoal">사이언 · 라임</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div class="form-row">
+                      <label><span class="field-label">디자인 스타일</span>
+                        <select id="ai-logo-style" class="text-field">
+                          <option value="minimal flat geometric identity">미니멀 플랫</option>
+                          <option value="organic hand-drawn identity">오가닉 핸드드로잉</option>
+                          <option value="retro editorial identity from the 1970s">레트로 에디토리얼</option>
+                          <option value="premium restrained luxury identity">절제된 럭셔리</option>
+                          <option value="playful friendly character identity">친근한 캐릭터</option>
+                          <option value="experimental brutalist graphic identity">실험적 브루탈리즘</option>
+                        </select>
+                      </label>
+                      <label><span class="field-label">차별화 강도</span>
+                        <select id="ai-logo-originality" class="text-field">
+                          <option value="bold">과감하게 다르게</option>
+                          <option value="balanced">균형 있게</option>
+                          <option value="safe">안정적으로</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label class="field-label" for="ai-logo-prompt">브랜드 성격과 원하는 아이디어</label>
+                    <textarea id="ai-logo-prompt" class="text-field" rows="4" placeholder="예: 음악가를 위한 협업 서비스. 연결과 리듬을 하나의 단순한 심볼로 표현. 행성, 불꽃, 날개 모양은 사용하지 않기."></textarea>
+
+                    <label class="field-label" for="ai-logo-avoid">피하고 싶은 요소</label>
+                    <input id="ai-logo-avoid" class="text-field" type="text" placeholder="예: 보라색, 금속 질감, 불꽃, 기존 PLAZION과 유사한 형태" maxlength="300" />
+
                     <label><span class="field-label">AI 모델</span>
                       <select id="ai-logo-model" class="text-field">
                         <option value="nano-banana-2-flash-lite">빠른 생성</option>
@@ -193,12 +241,15 @@ export function createApp(options: AppOptions = {}) {
                         <option value="qwen-image-3">한·영 타이포</option>
                       </select>
                     </label>
+
+                    <button id="generate-logo-btn" class="action-btn action-btn--ai" type="button">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i><span>새 로고 시안 생성</span>
+                    </button>
+                    <p class="field-help">현재 미리보기 이미지는 AI에 전달하지 않습니다. 생성 버튼을 누를 때마다 새로운 시안을 만듭니다.</p>
                   </div>
-                  <button id="generate-logo-btn" class="action-btn action-btn--ai" type="button">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i><span>Genspark AI로 로고 생성</span>
-                  </button>
-                  <p class="field-help">AI 생성은 크레딧을 사용하며 Orbitron의 <code>GSK_API_KEY</code>로 안전하게 호출됩니다.</p>
                 </div>
+
+                <p id="source-ready-status" class="source-ready-status"><i class="fa-solid fa-circle-info"></i> 아직 새 로고를 선택하지 않았습니다. 위 두 방식 중 하나를 완료하세요.</p>
               </article>
 
               <article class="workspace-card settings-card">
@@ -404,9 +455,9 @@ export function createApp(options: AppOptions = {}) {
         </footer>
 
         <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-        <script src="/static/vfx-intro.js?v=20260829-studio-2"></script>
-        <script src="/static/app.js?v=20260829-studio-2"></script>
-        <script src="/static/studio.js?v=20260829-studio-2"></script>
+        <script src="/static/vfx-intro.js?v=20260829-studio-3"></script>
+        <script src="/static/app.js?v=20260829-studio-3"></script>
+        <script src="/static/studio.js?v=20260829-studio-3"></script>
       </div>
     )
   })
