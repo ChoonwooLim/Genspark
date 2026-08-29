@@ -642,3 +642,13 @@ img { max-width: 100%; display: block; }
 .handoff-files a { color: var(--action-blue); }
 .handoff-files span { color: var(--muted); }
 .handoff-preview { width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--hairline); border-radius: var(--r-sm); background: #000; }
+
+.handoff-timeline__section {
+  padding-top: 18px;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ink);
+}

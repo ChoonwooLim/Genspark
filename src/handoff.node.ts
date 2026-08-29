@@ -84,8 +84,11 @@ export function parseHandoffSpec(md: string) {
     resolutions: {} as Record<string, { width: number; height: number }>,
     colors: {} as Record<string, string>,
     tokens: [] as { name: string; value: string }[],
+    aspects: [] as string[],
+    concepts: [] as { name: string | null; duration: number; phases: number }[],
     variants: [] as any[],
     timeline: [] as any[],
+    durationSource: 'stated' as 'stated' | 'timeline',
   }
 
   const title = md.match(/^#\s+(?:Handoff:\s*)?(.+)$/m)
@@ -184,33 +187,108 @@ export function parseHandoffSpec(md: string) {
     })
   }
 
-  // ---- timeline: any table row starting with a time or time range ----
+  // ---- timeline ----
+  // Two shapes in the wild: a table whose first column is a time range, and a
+  // plain bullet like "- 0–1500ms: 플라즈마 점화". A bundle with several
+  // concepts repeats the bullet form once per concept, so each entry carries
+  // the heading it appeared under and the reader can tell them apart.
   const TIME = /^([\d.]+)\s*(ms|s)?\s*(?:[–—-]\s*([\d.]+)\s*(ms|s)?)?\s*$/i
-  for (const cells of rows) {
-    const raw = cells[0].replace(/\*\*/g, '').trim()
-    // A layer table's first column is 1, 2, 3 — those parse as times but are
-    // not. Require a unit, a range, or a decimal before treating it as one.
-    if (!/ms|s|[–—-]|\./i.test(raw)) continue
-    const match = raw.match(TIME)
-    if (!match) continue
-    const event = clean(cells[cells.length - 1])
-    if (!event || TIME.test(event)) continue
+  // A unit is required here. Without it "- 16:9 (1920×1080): logo width 540px"
+  // reads as a time range and lands in the timeline.
+  const BULLET =
+    /^\s*[-*]\s+`?([\d.]+)\s*(ms|s)?\s*(?:[–—~-]\s*([\d.]+)\s*(ms|s))?`?\s*(?:이후|부터)?\s*[:：]\s*(.+)$/
 
-    // Unit is stated on either end of the range; seconds when absent, which is
-    // how the PLAZION table's "Time (s)" column is written.
-    const unit = (match[4] || match[2] || 's').toLowerCase()
-    const scale = unit === 'ms' ? 0.001 : 1
-    const start = Number(match[1]) * scale
-    const end = match[3] === undefined ? start : Number(match[3]) * scale
-    if (!Number.isFinite(start) || !Number.isFinite(end)) continue
+  const toSeconds = (value: string, unit?: string) =>
+    Number(value) * (String(unit || 's').toLowerCase() === 'ms' ? 0.001 : 1)
 
+  const push = (startRaw: string, startUnit: string | undefined, endRaw: string | undefined,
+                endUnit: string | undefined, label: string, event: string,
+                section: string | null, frames: string | null) => {
+    const from = toSeconds(startRaw, startUnit || endUnit)
+    const to = endRaw === undefined ? from : toSeconds(endRaw, endUnit || startUnit)
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return
     spec.timeline.push({
-      start: Number(start.toFixed(3)),
-      end: Number(end.toFixed(3)),
-      label: raw,
-      frames: cells.length >= 3 ? clean(cells[1]) || null : null,
+      start: Number(from.toFixed(3)),
+      end: Number(to.toFixed(3)),
+      label,
+      section,
+      frames,
       event: event.length > 400 ? `${event.slice(0, 400)}…` : event,
     })
+  }
+
+  let section: string | null = null
+  for (const line of md.split('\n')) {
+    const heading = line.match(/^#{2,4}\s+(.+?)\s*$/)
+    if (heading) {
+      section = clean(heading[1])
+      continue
+    }
+
+    const trimmed = line.trim()
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      const cells = trimmed.slice(1, -1).split('|').map((cell) => cell.trim())
+      if (cells.length < 2) continue
+      const raw = cells[0].replace(/\*\*/g, '').trim()
+      // A layer table's first column is 1, 2, 3 — those parse as times but are
+      // not. Require a unit, a range, or a decimal before treating it as one.
+      if (!/ms|s|[–—-]|\./i.test(raw)) continue
+      const match = raw.match(TIME)
+      if (!match) continue
+      const event = clean(cells[cells.length - 1])
+      if (!event || TIME.test(event)) continue
+      push(match[1], match[2], match[3], match[4], raw, event, section,
+           cells.length >= 3 ? clean(cells[1]) || null : null)
+      continue
+    }
+
+    const bullet = line.match(BULLET)
+    if (bullet && (bullet[2] || bullet[4])) {
+      const event = clean(bullet[5])
+      if (event) {
+        push(bullet[1], bullet[2], bullet[3], bullet[4],
+             line.trim().replace(/^[-*]\s+/, '').split(/[:：]/)[0].trim(), event, section, null)
+      }
+    }
+  }
+
+  // Concepts each have their own timeline. Collapsing them into one duration
+  // invents a number that describes nothing, so summarise per section and only
+  // promote a top-level duration when there is a single timeline to speak for.
+  const sections = new Map<string, number>()
+  for (const entry of spec.timeline as any[]) {
+    const name = entry.section || ''
+    sections.set(name, Math.max(sections.get(name) ?? 0, entry.end))
+  }
+  spec.concepts = [...sections].map(([name, end]) => ({
+    name: name || null,
+    duration: Number(end.toFixed(3)),
+    phases: (spec.timeline as any[]).filter((t) => (t.section || '') === name).length,
+  }))
+
+  if (spec.duration == null && spec.concepts.length === 1) {
+    spec.duration = spec.concepts[0].duration
+    spec.durationSource = 'timeline'
+  }
+
+  // Aspect ratios when no pixel dimensions are given (this bundle ships 16:9
+  // and 9:16 variants but never writes the pixel sizes out).
+  if (!Object.keys(spec.resolutions).length) {
+    // Some handoffs state sizes inline: "- 16:9 (1920×1080): logo width 540px"
+    for (const m of md.matchAll(/(\d{1,2})\s*:\s*(\d{1,2})\s*\(\s*(\d{3,5})\s*[×x]\s*(\d{3,5})\s*\)/g)) {
+      const width = Number(m[3])
+      const height = Number(m[4])
+      spec.resolutions[width >= height ? 'landscape' : 'portrait'] = { width, height }
+    }
+  }
+
+  if (!Object.keys(spec.resolutions).length) {
+    const aspects = new Set<string>()
+    for (const m of md.matchAll(/\b(\d{1,2}):(\d{1,2})\b/g)) {
+      const ratio = `${m[1]}:${m[2]}`
+      if (['16:9', '9:16', '4:3', '3:4', '1:1', '21:9'].includes(ratio)) aspects.add(ratio)
+    }
+    if (aspects.size) spec.aspects = [...aspects]
   }
 
   return spec

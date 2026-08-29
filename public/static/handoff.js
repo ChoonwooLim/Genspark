@@ -88,10 +88,26 @@
     if (!spec) return '';
     const selected = (spec.variants || []).find((v) => v.selected);
     const land = spec.resolutions?.landscape;
+    const port = spec.resolutions?.portrait;
+    const concepts = spec.concepts || [];
+
+    const size = land && port ? `${land.width}×${land.height} · ${port.width}×${port.height}`
+      : land ? `${land.width}×${land.height}`
+      : port ? `${port.width}×${port.height}`
+      : (spec.aspects || []).join(' · ') || null;
+
+    // A bundle with several concepts has no single duration; say how many and
+    // how long they run instead of inventing one number for all of them.
+    const timing = concepts.length > 1
+      ? `컨셉 ${concepts.length}개 · ${Math.min(...concepts.map((c) => c.duration))}–${Math.max(...concepts.map((c) => c.duration))}s`
+      : spec.duration
+        ? `${spec.duration}s${spec.durationSource === 'timeline' ? '(추정)' : ''}`
+        : null;
+
     return [
-      spec.duration ? `${spec.duration}s` : null,
+      timing,
       spec.fps ? `${spec.fps}fps` : null,
-      land ? `${land.width}×${land.height}` : null,
+      size,
       selected ? `Variant ${String(selected.number).padStart(2, '0')} ${selected.name}` : null,
       (spec.timeline || []).length ? `타임라인 ${spec.timeline.length}단계` : null,
     ].filter(Boolean).join(' · ');
@@ -134,8 +150,21 @@
     const body = await fetch(`/api/handoffs/${encodeURIComponent(bundle.id)}`).then((r) => r.json());
     const h = body.handoff;
     const spec = h.spec || {};
-    const timeline = (spec.timeline || [])
-      .map((t) => `<tr><td>${esc(t.label || `${t.start}–${t.end}s`)}</td><td>${esc(t.frames || '')}</td><td>${esc(t.event)}</td></tr>`)
+    const groups = new Map();
+    (spec.timeline || []).forEach((t) => {
+      const key = t.section || '';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(t);
+    });
+    const timeline = [...groups]
+      .map(([section, phases]) => {
+        const head = section && groups.size > 1
+          ? `<tr><th colspan="3" class="handoff-timeline__section">${esc(section)}</th></tr>`
+          : '';
+        return head + phases
+          .map((t) => `<tr><td>${esc(t.label || `${t.start}–${t.end}s`)}</td><td>${esc(t.frames || '')}</td><td>${esc(t.event)}</td></tr>`)
+          .join('');
+      })
       .join('');
     const files = (h.manifest || [])
       .map(
@@ -283,7 +312,7 @@
   els.list.addEventListener('click', async (event) => {
     const button = event.target.closest('button[data-action]');
     if (!button) return;
-    const id = button.closest('.handoff-card')?.dataset.id;
+    const id = button.closest('.handoff-row')?.dataset.id;
     const bundle = bundles.find((b) => b.id === id);
     if (!bundle) return;
     try {
