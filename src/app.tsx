@@ -3,10 +3,30 @@
 // Node.js server entry (src/server.node.ts) import `createApp()` from here
 // and each attaches its own runtime-appropriate `serveStatic` middleware.
 import { Hono } from 'hono'
+import { etag } from 'hono/etag'
 import { renderer } from './renderer'
 
 export function createApp() {
   const app = new Hono()
+
+  // Cache-busting: every response revalidates with the server (304 when
+  // unchanged), so a redeploy shows up without the user hard-refreshing.
+  // Build outputs whose filename carries a content hash are the exception —
+  // the name changes when the bytes change, so they are safe to cache forever.
+  app.use('*', async (c, next) => {
+    await next()
+    const hashed =
+      c.res.status < 400 && /\.[0-9a-f]{8,}\.[a-z0-9]+$/i.test(c.req.path)
+    c.header(
+      'Cache-Control',
+      hashed ? 'public, max-age=31536000, immutable' : 'public, max-age=0, must-revalidate'
+    )
+  })
+
+  // ETag on every response so `must-revalidate` costs a 304 instead of a full
+  // re-download. Registered after the header middleware above so that one runs
+  // last on the way out and stamps Cache-Control onto the 304 as well.
+  app.use('*', etag())
 
   app.use(renderer)
 
