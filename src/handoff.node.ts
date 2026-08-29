@@ -338,6 +338,11 @@ export function detectEntrypoints(names: string[]) {
   // Genspark also includes, and prefer shallower paths within that.
   const depthBonus = (n: string) => (lower(n).includes('design_handoff') ? 100 : 0) - n.split('/').length
 
+  const preferPrefixed = (candidates: string[]) => {
+    const prefixed = candidates.filter((n) => lower(n).includes('design_handoff'))
+    return prefixed.length ? prefixed : candidates
+  }
+
   return {
     readme: byScore(names.filter((n) => /(^|\/)readme\.md$/i.test(n)), depthBonus),
     logo: byScore(
@@ -345,8 +350,12 @@ export function detectEntrypoints(names: string[]) {
       (n) => depthBonus(n) + (lower(n).includes('/assets/') ? 50 : 0)
     ),
     thumbnail: byScore(names.filter((n) => /thumbnail\.(jpe?g|png|webp)$/i.test(n)), depthBonus),
-    previews: names.filter((n) => /\.html$/i.test(n) && lower(n).includes('design_handoff')),
-    variants: names.filter((n) => /variant\d.*\.(jsx|tsx)$/i.test(n) && lower(n).includes('design_handoff')),
+    // The design_handoff filter exists to skip the flattened duplicates some
+    // exports put at the zip root — but a bundle zipped from inside its own
+    // folder has no such prefix anywhere, and requiring one left it with no
+    // previews at all. Prefer prefixed copies; otherwise take what is there.
+    previews: preferPrefixed(names.filter((n) => /\.html$/i.test(n))),
+    variants: preferPrefixed(names.filter((n) => /variant\d.*\.(jsx|tsx)$/i.test(n))),
   }
 }
 
@@ -545,20 +554,25 @@ export async function createHandoffApi() {
       .catch(() => ({ rows: [] }))
     if (!rows[0]) return c.json({ error: 'not_found' }, 404)
 
-    const readme = rows[0].entrypoints?.readme
-    if (!readme) return c.json({ error: '이 번들에는 README가 없습니다.' }, 422)
+    // Entrypoints are recomputed from the manifest too: a detection fix is as
+    // likely as a parser fix, and re-uploading to pick either up is absurd.
+    const manifestRows = await pool.query('SELECT manifest FROM handoff_bundles WHERE id = $1', [id])
+    const names = (manifestRows.rows[0]?.manifest || []).map((m: any) => m.path)
+    const entrypoints = detectEntrypoints(names)
 
-    let spec: any
-    try {
-      const text = await fs.readFile(path.join(rootDir, id, readme), 'utf8')
-      spec = parseHandoffSpec(text)
-    } catch {
-      return c.json({ error: 'README를 다시 읽지 못했습니다.' }, 410)
+    let spec: any = {}
+    if (entrypoints.readme) {
+      try {
+        const text = await fs.readFile(path.join(rootDir, id, entrypoints.readme), 'utf8')
+        spec = parseHandoffSpec(text)
+      } catch {
+        return c.json({ error: 'README를 다시 읽지 못했습니다.' }, 410)
+      }
     }
 
     const updated = await pool.query(
-      'UPDATE handoff_bundles SET spec = $2 WHERE id = $1 RETURNING *',
-      [id, JSON.stringify(spec)]
+      'UPDATE handoff_bundles SET spec = $2, entrypoints = $3 WHERE id = $1 RETURNING *',
+      [id, JSON.stringify(spec), JSON.stringify(entrypoints)]
     )
     return c.json({ handoff: rowToBundle(updated.rows[0]) })
   })

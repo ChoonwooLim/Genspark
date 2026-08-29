@@ -270,6 +270,71 @@
     els.detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
+  /* Folder import. Restored after a block replace around showPreview took
+   * these with it — the wiring below survived, so clicking the button threw
+   * ReferenceError while looking perfectly healthy. */
+  // Directories that are never part of a handoff and would balloon the upload.
+  const SKIP_DIR = /^(node_modules|\.git|\.next|dist|build|\.cache)$/i;
+  const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
+
+  /** Walk a FileSystemDirectoryHandle into [{path, file}]. */
+  async function walkDirectory(handle, prefix = '', out = []) {
+    for await (const [name, child] of handle.entries()) {
+      if (child.kind === 'directory') {
+        if (SKIP_DIR.test(name)) continue;
+        await walkDirectory(child, `${prefix}${name}/`, out);
+      } else {
+        const file = await child.getFile();
+        if (file.size <= MAX_ENTRY_BYTES) out.push({ path: `${prefix}${name}`, file });
+      }
+    }
+    return out;
+  }
+
+  /** Zip the picked files in the browser and hand the archive to the existing
+   *  import endpoint, so folder and .zip imports share one server path and one
+   *  set of validation rules. */
+  async function zipEntries(entries, rootName) {
+    if (!window.JSZip) throw new Error('ZIP 모듈을 불러오지 못했습니다.');
+    const zip = new window.JSZip();
+    entries.forEach(({ path, file }) => zip.file(path, file));
+    say(`폴더 압축 중… 파일 ${entries.length}개`);
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+    return new File([blob], `${rootName || 'handoff'}.zip`, { type: 'application/zip' });
+  }
+
+  async function importFolder() {
+    if (busy) return;
+    if (!('showDirectoryPicker' in window)) {
+      els.folderInput.click();
+      return;
+    }
+    let handle;
+    try {
+      handle = await window.showDirectoryPicker({ id: 'plazion-handoff', mode: 'read' });
+    } catch (error) {
+      if (error && error.name === 'AbortError') return;
+      throw error;
+    }
+    say(`“${handle.name}” 폴더를 읽는 중…`);
+    const entries = await walkDirectory(handle, `${handle.name}/`);
+    if (!entries.length) throw new Error('폴더에서 파일을 찾지 못했습니다.');
+    await upload(await zipEntries(entries, handle.name));
+  }
+
+  async function importFolderInput(fileList) {
+    const files = Array.from(fileList);
+    if (!files.length) return;
+    const entries = files
+      .map((file) => ({ path: file.webkitRelativePath || file.name, file }))
+      .filter(({ path, file }) =>
+        file.size <= MAX_ENTRY_BYTES && !path.split('/').some((part) => SKIP_DIR.test(part))
+      );
+    if (!entries.length) throw new Error('가져올 수 있는 파일이 없습니다.');
+    const rootName = entries[0].path.split('/')[0] || 'handoff';
+    await upload(await zipEntries(entries, rootName));
+  }
+
   async function upload(file) {
     if (busy) return;
     if (!/\.zip$/i.test(file.name)) throw new Error('project.zip 파일 또는 압축을 푼 폴더를 선택해 주세요.');
