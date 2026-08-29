@@ -160,6 +160,36 @@
     return body;
   }
 
+  // Library writes reuse the same access code as the AI routes (the server gates
+  // POST/DELETE so a public visitor cannot overwrite or wipe the library).
+  // Reads stay unauthenticated so the gallery renders for everyone.
+  function studioHeaders(extra) {
+    const token = sessionStorage.getItem('plazionStudioToken') || '';
+    return token ? { ...extra, 'X-Studio-Token': token } : { ...extra };
+  }
+
+  // Retries once after prompting, so a first save in a fresh session does not
+  // silently fall back to IndexedDB just because the code was never entered.
+  async function studioWrite(url, options) {
+    const send = () => fetch(url, { ...options, headers: studioHeaders(options.headers) });
+    let response = await send();
+    if (response.status === 401) {
+      const body = await response.json().catch(() => ({}));
+      if (body.code === 'STUDIO_AUTH_REQUIRED') {
+        const token = window.prompt('작업실 접근 코드를 입력하세요.') || '';
+        if (!token) throw new Error('접근 코드가 없어 서버에 저장하지 못했습니다.');
+        sessionStorage.setItem('plazionStudioToken', token);
+        response = await send();
+      }
+    }
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) sessionStorage.removeItem('plazionStudioToken');
+      throw new Error(body.error || `요청 실패 (${response.status})`);
+    }
+    return body;
+  }
+
   function normalizedRemoteList(body, key) {
     const value = Array.isArray(body) ? body : body[key] || body.items || [];
     return Array.isArray(value) ? value : [];
@@ -258,7 +288,7 @@
     };
     await localStore.putPreset(preset);
     try {
-      await fetchJson('/api/presets', {
+      await studioWrite('/api/presets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(preset),
@@ -295,7 +325,7 @@
       const form = new FormData();
       form.append('metadata', JSON.stringify(metadata));
       form.append('logo', blob, `${id}.png`);
-      const body = await fetchJson('/api/logos', { method: 'POST', body: form });
+      const body = await studioWrite('/api/logos', { method: 'POST', body: form });
       savedProject = body.logo || body.project || body;
       setStorageMode('server', 'Orbitron 저장소 연결됨');
     } catch {
@@ -379,7 +409,7 @@
   async function deleteProject(project) {
     if (!window.confirm(`“${project.name}” 프로젝트를 삭제할까요?`)) return;
     try {
-      await fetchJson(`/api/logos/${encodeURIComponent(project.id)}`, { method: 'DELETE' });
+      await studioWrite(`/api/logos/${encodeURIComponent(project.id)}`, { method: 'DELETE' });
     } catch {
       await localStore.deleteLogo(project.id);
     }
@@ -592,7 +622,7 @@
   els.deletePreset.addEventListener('click', async () => {
     const preset = presets.find((item) => item.id === els.presetSelect.value);
     if (!preset || preset.isDefault) return;
-    try { await fetchJson(`/api/presets/${encodeURIComponent(preset.id)}`, { method: 'DELETE' }); } catch { await localStore.deletePreset(preset.id); }
+    try { await studioWrite(`/api/presets/${encodeURIComponent(preset.id)}`, { method: 'DELETE' }); } catch { await localStore.deletePreset(preset.id); }
     presets = presets.filter((item) => item.id !== preset.id);
     renderPresets(DEFAULT_PRESET.id);
     applySettings(DEFAULT_PRESET);

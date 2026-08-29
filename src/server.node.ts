@@ -6,6 +6,7 @@ import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { createApp } from './app'
 import { createSequencesApi } from './sequences.node'
+import { createStudioLibraryApi } from './logos.node'
 
 const app = createApp({
   genspark: {
@@ -19,6 +20,10 @@ app.use('/static/*', serveStatic({ root: './public' }))
 // Server-side PNG-sequence archive (Postgres metadata + archive on the
 // Orbitron persistent volume). Node-only; the Workers entry has no equivalent.
 app.route('/api/sequences', await createSequencesApi())
+
+// Studio library (projects + presets) backed by the same Postgres and volume.
+// Replaces the Workers-only `unconfigured` stubs with real persistence.
+app.route('/api', await createStudioLibraryApi())
 
 const port = Number(process.env.PORT) || 3000
 

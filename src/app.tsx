@@ -42,12 +42,6 @@ export function createApp(options: AppOptions = {}) {
   app.post('/api/ai/generate-logo', (c) => generateLogoWithGenspark(c, options.genspark || {}))
   app.post('/api/ai/import-genspark-image', (c) => importGensparkImage(c, options.genspark || {}))
 
-  // Storage API discovery stubs. The Orbitron persistence service can replace
-  // these routes with PostgreSQL/filesystem-backed implementations while the
-  // client safely falls back to IndexedDB during parallel development.
-  app.get('/api/logos', (c) => c.json({ logos: [], storage: 'unconfigured' }))
-  app.get('/api/presets', (c) => c.json({ presets: [], storage: 'unconfigured' }))
-
   app.get('/', (c) => {
     return c.render(
       <div id="app-root">

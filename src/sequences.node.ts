@@ -14,6 +14,7 @@ import { createReadStream } from 'node:fs'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { Readable } from 'node:stream'
+import { createPool, resolveDatabaseUrl, resolveUploadDir } from './storage.node'
 
 const CHUNK_SIZE = 8 * 1024 * 1024
 const MAX_UPLOAD_BYTES = Number(process.env.SEQUENCE_MAX_BYTES) || 512 * 1024 * 1024
@@ -59,56 +60,6 @@ const SCHEMA = `
     ON png_sequences (created_at DESC);
 `
 
-/** Resolve the Postgres URL. Orbitron injects secrets as files (other projects
- *  on the box get DATABASE_URL_FILE), so that form is the primary path; the
- *  plain env var covers local runs and the on-volume file lets the database be
- *  attached without waiting for an env-var redeploy. */
-async function resolveDatabaseUrl(uploadDir: string): Promise<string | null> {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL.trim()
-
-  const fromFile = process.env.DATABASE_URL_FILE
-  if (fromFile) {
-    try {
-      return (await fs.readFile(fromFile, 'utf8')).trim()
-    } catch {
-      console.warn(`[sequences] DATABASE_URL_FILE set but unreadable: ${fromFile}`)
-    }
-  }
-
-  const onVolume = ['/app/data/database-url', path.join(uploadDir, '..', 'data', 'database-url')]
-  for (const candidate of onVolume) {
-    try {
-      const value = (await fs.readFile(candidate, 'utf8')).trim()
-      if (value) return value
-    } catch {
-      /* not present — try the next candidate */
-    }
-  }
-  return null
-}
-
-async function resolveUploadDir(): Promise<string> {
-  if (process.env.UPLOAD_DIR) {
-    await fs.mkdir(process.env.UPLOAD_DIR, { recursive: true })
-    return path.resolve(process.env.UPLOAD_DIR)
-  }
-
-  // Orbitron bind-mounts /app/uploads into the container, so its presence is
-  // what identifies that environment. Only adopt it when it already exists —
-  // on Windows a bare '/app/uploads' resolves to <drive>:\app\uploads and
-  // mkdir would happily create a stray directory on a dev machine.
-  try {
-    const stat = await fs.stat('/app/uploads')
-    if (stat.isDirectory()) return path.resolve('/app/uploads')
-  } catch {
-    /* not this environment — fall back to a project-local directory */
-  }
-
-  const local = path.resolve('./uploads')
-  await fs.mkdir(local, { recursive: true })
-  return local
-}
-
 /** Keep the newest RETENTION rows; delete older rows and their archives. */
 async function prune(pool: any, uploadDir: string) {
   const { rows } = await pool.query(
@@ -128,36 +79,11 @@ export async function createSequencesApi() {
   const tmpDir = path.join(uploadDir, '.tmp')
   await fs.mkdir(tmpDir, { recursive: true })
 
-  const databaseUrl = await resolveDatabaseUrl(uploadDir)
-  let pool: any = null
-
-  if (databaseUrl) {
-    // A database that is down, unreachable, or not yet provisioned must not
-    // take the whole site with it — this feature degrades, the intro page does
-    // not. Same reason the pool gets an 'error' handler: node-postgres emits on
-    // idle clients dropped by the server, and an unhandled one would exit.
-    try {
-      const { default: pg } = await import('pg')
-      const candidate = new pg.Pool({
-        connectionString: databaseUrl,
-        max: 4,
-        connectionTimeoutMillis: 8000,
-      })
-      candidate.on('error', (err: Error) => console.error('[sequences] idle client error:', err.message))
-      await candidate.query(SCHEMA)
-      pool = candidate
-      console.log(`[sequences] postgres ready · storage=${uploadDir}`)
-    } catch (err) {
-      console.error(
-        '[sequences] postgres unavailable — server-side storage DISABLED:',
-        err instanceof Error ? err.message : err
-      )
-    }
+  const pool = await createPool('sequences', await resolveDatabaseUrl(uploadDir), SCHEMA)
+  if (pool) {
+    console.log(`[sequences] postgres ready · storage=${uploadDir}`)
   } else {
-    console.warn(
-      '[sequences] no DATABASE_URL / DATABASE_URL_FILE / /app/data/database-url — ' +
-        'server-side sequence storage is DISABLED'
-    )
+    console.warn('[sequences] no database — server-side sequence storage is DISABLED')
   }
 
   // Half-written .part files from an interrupted deploy are dead weight: the
