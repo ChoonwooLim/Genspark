@@ -404,9 +404,9 @@ export function createApp(options: AppOptions = {}) {
         </footer>
 
         <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-        <script src="/static/vfx-intro.js"></script>
-        <script src="/static/app.js"></script>
-        <script src="/static/studio.js"></script>
+        <script src="/static/vfx-intro.js?v=20260829-studio-2"></script>
+        <script src="/static/app.js?v=20260829-studio-2"></script>
+        <script src="/static/studio.js?v=20260829-studio-2"></script>
       </div>
     )
   })
