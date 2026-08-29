@@ -8,6 +8,7 @@ import { createApp } from './app'
 import { createSequencesApi } from './sequences.node'
 import { createStudioLibraryApi } from './logos.node'
 import { createHandoffApi } from './handoff.node'
+import { createRenderApi } from './render.node'
 
 const app = createApp({
   genspark: {
@@ -30,6 +31,11 @@ app.route('/api', await createStudioLibraryApi())
 // manifest in Postgres. Registered after the library so its own /api/handoffs
 // prefix stays distinct.
 app.route('/api/handoffs', await createHandoffApi())
+
+// Headless render service: frames from a real browser, MP4 via ffmpeg. This
+// is what makes export work for imported prototypes, which cannot be read
+// back out of the sandboxed iframe that plays them in the page.
+app.route('/api/renders', await createRenderApi())
 
 const port = Number(process.env.PORT) || 3000
 
