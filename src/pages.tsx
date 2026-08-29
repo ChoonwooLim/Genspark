@@ -344,9 +344,16 @@ export function StudioPage() {
                 <p class="mono-label">Live preview</p>
                 <p class="mono-label"><span id="loop-count">0</span> loops</p>
               </div>
+              {/* Which animation plays here: the built-in engine, or — after a
+                  handoff is adopted — that handoff's own concepts. */}
+              <div class="field" id="studio-anim-field" hidden>
+                <select id="studio-anim" class="select select--on-dark"></select>
+              </div>
               <div id="canvas-wrap" class="canvas-wrap canvas-wrap--landscape">
                 <canvas id="intro-canvas" width="1920" height="1080" aria-label="설정 미리보기"></canvas>
               </div>
+              <div id="studio-proto" class="handoff-frame" hidden></div>
+              <p id="studio-anim-note" class="micro"></p>
             </div>
 
             <button id="save-project-btn" type="button" class="btn">

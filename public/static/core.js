@@ -245,6 +245,47 @@ window.PlazionCore = (function () {
     notify();
   }
 
+  /** Group a handoff bundle's prototypes into named concepts.
+   *
+   *  Both the studio's live preview and the preview page need the same
+   *  grouping, and it drifted once already — the preview page knew concept
+   *  names from the mapping table while the studio knew nothing at all. */
+  function buildHandoffConcepts(bundle) {
+    const previews = bundle?.entrypoints?.previews || [];
+    if (!previews.length) return [];
+    const byBasename = new Map(previews.map((p) => [p.split('/').pop(), p]));
+    const mapped = bundle.spec?.conceptFiles || [];
+    const concepts = [];
+
+    if (mapped.length) {
+      for (const concept of mapped) {
+        const files = {};
+        for (const aspect of ['landscape', 'portrait']) {
+          const full = byBasename.get(concept.files?.[aspect]);
+          if (full) files[aspect] = full;
+        }
+        if (!Object.keys(files).length) continue;
+        concepts.push({
+          label: `${concept.id ? `${concept.id} · ` : ''}${concept.name}`,
+          note: concept.note || null,
+          files,
+        });
+      }
+      if (concepts.length) return concepts;
+    }
+
+    const byConcept = new Map();
+    for (const path of previews) {
+      const file = path.split('/').pop().replace(/\.html$/i, '');
+      const portrait = /9[x_-]?16|portrait/i.test(file);
+      const name = file.replace(/logo\s*animation/i, '').replace(/9[x_-]?16/i, '').trim() || '기본';
+      if (!byConcept.has(name)) byConcept.set(name, {});
+      byConcept.get(name)[portrait ? 'portrait' : 'landscape'] = path;
+    }
+    for (const [label, files] of byConcept) concepts.push({ label, note: null, files });
+    return concepts;
+  }
+
   /** The logo being worked on, shared across pages.
    *
    *  The studio holds it as an object URL, which dies with the page — so a
@@ -275,9 +316,14 @@ window.PlazionCore = (function () {
   }
 
   async function setWorkingSettings(settings) {
+    await updateWorkingMeta({ settings });
+  }
+
+  /** Merge a partial change into the working meta without touching the blob. */
+  async function updateWorkingMeta(patch) {
     const current = await getWorkingLogo();
     if (!current) return;
-    await setWorkingLogo(current.blob, { ...current.meta, settings });
+    await setWorkingLogo(current.blob, { ...current.meta, ...patch });
   }
 
   async function clearWorkingLogo() {
@@ -325,6 +371,8 @@ window.PlazionCore = (function () {
     setWorkingLogo,
     getWorkingLogo,
     setWorkingSettings,
+    updateWorkingMeta,
     clearWorkingLogo,
+    buildHandoffConcepts,
   };
 })();

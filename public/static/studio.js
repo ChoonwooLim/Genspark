@@ -48,6 +48,10 @@
     canvas: el('intro-canvas'),
     canvasWrap: el('canvas-wrap'),
     loopCount: el('loop-count'),
+    animField: el('studio-anim-field'),
+    anim: el('studio-anim'),
+    proto: el('studio-proto'),
+    animNote: el('studio-anim-note'),
   };
   if (!core || !els.save) return;
 
@@ -56,6 +60,12 @@
   let sourceConfirmed = false;
   let projectId = null;
   let busy = false;
+
+  // Which animation the live preview plays. The engine renders whatever logo
+  // is loaded; a handoff concept is its own animation and ignores the logo.
+  let animSource = { kind: 'engine' };
+  let animConcepts = [];
+  let protoFit = null;
 
   const say = (message, type = 'info') => {
     els.status.textContent = message;
@@ -121,6 +131,126 @@
     pushSettings();
   }
 
+  // ---- animation source --------------------------------------------
+
+  function renderStudioProto() {
+    const aspect = getSettings().aspect;
+    const concept = animConcepts[animSource.conceptIndex || 0];
+    const path = concept && (concept.files[aspect] || concept.files.landscape || concept.files.portrait);
+    if (!path) return;
+    const dims = /9[x_-]?16|portrait/i.test(path) ? { w: 1080, h: 1920 } : { w: 1920, h: 1080 };
+    const src = `/api/handoffs/${encodeURIComponent(animSource.bundleId)}/files/${path
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/')}`;
+    els.proto.innerHTML = `<iframe class="handoff-preview" style="width:${dims.w}px;height:${dims.h}px" src="${src}" sandbox="allow-scripts" title="${core.escapeHtml(concept.label)}"></iframe>`;
+
+    const fit = () => {
+      const availW = els.proto.clientWidth;
+      if (!availW) return;
+      const availH = Math.min(window.innerHeight * 0.5, (availW * dims.h) / dims.w);
+      const k = Math.min(availW / dims.w, availH / dims.h);
+      els.proto.style.height = `${Math.round(dims.h * k)}px`;
+      els.proto.style.setProperty('--frame-scale', String(k));
+      const frame = els.proto.querySelector('.handoff-preview');
+      if (frame) frame.style.left = `${Math.round((availW - dims.w * k) / 2)}px`;
+    };
+    fit();
+    protoFit?.disconnect();
+    protoFit = new ResizeObserver(fit);
+    protoFit.observe(els.proto);
+  }
+
+  function renderAnimPicker() {
+    if (!els.anim) return;
+    const options = [{ value: 'engine', label: '내장 엔진 · Voxel Materialize' }];
+    animConcepts.forEach((concept, index) =>
+      options.push({ value: String(index), label: `${animSource.bundleName || '핸드오프'} · ${concept.label}` })
+    );
+    els.anim.replaceChildren(
+      ...options.map((option) => {
+        const el = document.createElement('option');
+        el.value = option.value;
+        el.textContent = option.label;
+        return el;
+      })
+    );
+    els.anim.value = animSource.kind === 'proto' ? String(animSource.conceptIndex || 0) : 'engine';
+    els.animField.hidden = animConcepts.length === 0;
+  }
+
+  /** Switch what the live preview plays, and say what the dials now mean —
+   *  glow and energy drive the engine only, so they grey out over a prototype
+   *  instead of pretending to apply. */
+  function applyAnimView() {
+    const isEngine = animSource.kind !== 'proto';
+    els.canvasWrap.hidden = !isEngine;
+    els.proto.hidden = isEngine;
+    els.glow.disabled = !isEngine;
+    els.energy.disabled = !isEngine;
+    if (isEngine) {
+      protoFit?.disconnect();
+      protoFit = null;
+      els.proto.innerHTML = '';
+      els.animNote.textContent = '';
+    } else {
+      const concept = animConcepts[animSource.conceptIndex || 0];
+      els.animNote.textContent = [
+        concept?.note,
+        '가져온 프로토타입을 원본 그대로 재생합니다 · 글로우·에너지는 내장 엔진 전용',
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      renderStudioProto();
+    }
+    renderAnimPicker();
+  }
+
+  async function setAnimSource(source, concepts) {
+    animSource = source;
+    animConcepts = concepts || [];
+    applyAnimView();
+    // Persisted so the preview page opens on the same animation, and so
+    // coming back to the studio does not silently fall back to the engine.
+    await core.updateWorkingMeta({
+      animation:
+        source.kind === 'proto'
+          ? {
+              kind: 'proto',
+              bundleId: source.bundleId,
+              bundleName: source.bundleName || null,
+              conceptIndex: source.conceptIndex || 0,
+              conceptLabel: animConcepts[source.conceptIndex || 0]?.label || null,
+            }
+          : { kind: 'engine' },
+    });
+  }
+
+  /** Rebuild concepts for a stored animation reference; the bundle may have
+   *  been deleted since, in which case the engine is the honest fallback. */
+  async function restoreAnimSource(animation) {
+    if (animation?.kind !== 'proto' || !animation.bundleId) {
+      animSource = { kind: 'engine' };
+      animConcepts = [];
+      applyAnimView();
+      return;
+    }
+    const body = await core.fetchJson(`/api/handoffs/${encodeURIComponent(animation.bundleId)}`).catch(() => null);
+    const bundle = body?.handoff;
+    const concepts = bundle ? core.buildHandoffConcepts(bundle) : [];
+    if (!concepts.length) {
+      animSource = { kind: 'engine' };
+      animConcepts = [];
+      applyAnimView();
+      say('저장된 핸드오프 애니메이션을 찾지 못해 내장 엔진으로 표시합니다.', 'error');
+      return;
+    }
+    const index = Math.min(animation.conceptIndex || 0, concepts.length - 1);
+    animSource = { kind: 'proto', bundleId: animation.bundleId, bundleName: bundle.name, conceptIndex: index };
+    animConcepts = concepts;
+    applyAnimView();
+  }
+
   // ---- logo source -------------------------------------------------
 
   async function setLogo(blob, filename, name) {
@@ -135,7 +265,17 @@
     const carried = await core.setWorkingLogo(blob, {
       filename,
       name: name || null,
+      projectId,
       settings: getSettings(),
+      animation:
+        animSource.kind === 'proto'
+          ? {
+              kind: 'proto',
+              bundleId: animSource.bundleId,
+              bundleName: animSource.bundleName || null,
+              conceptIndex: animSource.conceptIndex || 0,
+            }
+          : { kind: 'engine' },
     });
     ready(
       carried
@@ -223,7 +363,18 @@
       {
         id,
         name,
-        settings,
+        settings: {
+          ...settings,
+          animation:
+            animSource.kind === 'proto'
+              ? {
+                  kind: 'proto',
+                  bundleId: animSource.bundleId,
+                  bundleName: animSource.bundleName || null,
+                  conceptIndex: animSource.conceptIndex || 0,
+                }
+              : { kind: 'engine' },
+        },
         presetId: els.presetSelect.value,
         autoRegisterPreset: els.autoPreset.checked,
         frameRate: 30,
@@ -292,8 +443,22 @@
     radio.addEventListener('change', () => {
       pushSettings();
       core.setWorkingSettings(getSettings());
+      if (animSource.kind === 'proto') renderStudioProto();
     })
   );
+
+  els.anim.addEventListener('change', () => {
+    if (els.anim.value === 'engine') {
+      setAnimSource({ kind: 'engine' }, animConcepts).catch(() => {});
+      // Keep the concepts so the picker still offers the bundle.
+      els.animField.hidden = animConcepts.length === 0;
+    } else {
+      setAnimSource(
+        { ...animSource, kind: 'proto', conceptIndex: Number(els.anim.value) || 0 },
+        animConcepts
+      ).catch(() => {});
+    }
+  });
 
   els.presetSelect.addEventListener('change', () => {
     const preset = core.state.presets.find((p) => p.id === els.presetSelect.value);
@@ -397,6 +562,9 @@
     els.sourceReady.textContent = '';
     applySettings(core.DEFAULT_PRESET);
     core.clearWorkingLogo();
+    animSource = { kind: 'engine' };
+    animConcepts = [];
+    applyAnimView();
     if (intro) intro.setLogoSource(logoUrl);
     say('새 프로젝트를 시작했습니다.');
   });
@@ -419,6 +587,17 @@
     const land = spec.resolutions?.landscape;
     if (land) applySettings({ aspect: land.width >= land.height ? 'landscape' : 'portrait' });
     els.projectName.value = spec.title || bundle.name || '';
+
+    // The point of adopting a handoff is its animation, not just its logo —
+    // leaving the voxel engine running under a new logo answered the wrong
+    // question. Play the bundle's own concepts here.
+    const concepts = core.buildHandoffConcepts(bundle);
+    if (concepts.length) {
+      animSource = { kind: 'proto', bundleId: bundle.id, bundleName: bundle.name, conceptIndex: 0 };
+      animConcepts = concepts;
+      applyAnimView();
+    }
+
     await setLogo(blob, bundle.entrypoints?.logo?.split('/').pop() || 'handoff-logo.png', spec.title || bundle.name);
     say(`“${bundle.name}” 핸드오프를 불러왔습니다. 저장하면 라이브러리에 남습니다.`, 'success');
     return true;
@@ -436,6 +615,7 @@
     projectId = project.id;
     els.projectName.value = project.name || '';
     applySettings(project.settings || {});
+    await restoreAnimSource(project.settings?.animation);
     const source = project.logoBlob instanceof Blob ? project.logoBlob : await fetch(core.projectLogoUrl(project)).then((r) => r.blob());
     await setLogo(source, `${project.name}.png`, project.name);
     say(`“${project.name}” 을 불러왔습니다.`, 'success');
@@ -447,10 +627,29 @@
   applySettings(core.DEFAULT_PRESET);
   window.PlazionStudio = { setLogo, applySettings, setProjectName: (n) => { els.projectName.value = String(n || '').slice(0, 120); } };
 
+  /** Coming back to the studio used to look like pressing 새 프로젝트: the
+   *  working state was faithfully saved for the preview page and then never
+   *  read back here. A plain visit now resumes where the user left off; only
+   *  새 프로젝트 (or an explicit ?handoff / ?project) starts over. */
+  async function restoreWorkingState() {
+    const working = await core.getWorkingLogo();
+    if (!working?.blob) return;
+    projectId = working.meta?.projectId || null;
+    if (working.meta?.name) els.projectName.value = working.meta.name;
+    if (working.meta?.settings) applySettings(working.meta.settings);
+    await restoreAnimSource(working.meta?.animation);
+    await setLogo(working.blob, working.meta?.filename || 'working-logo.png', working.meta?.name);
+    say('작업 중이던 프로젝트를 이어서 표시합니다.');
+  }
+
   Promise.all([core.loadProjects(), core.loadPresets()])
     .then(() => {
       renderPresets(core.DEFAULT_PRESET.id);
-      return restoreFromHandoff().then((handled) => (handled ? null : restoreFromQuery()));
+      return restoreFromHandoff().then((handled) => {
+        if (handled) return null;
+        const wanted = core.projectIdFromQuery();
+        return wanted ? restoreFromQuery() : restoreWorkingState();
+      });
     })
     .catch(() => core.setStorageMode('local'));
 })();

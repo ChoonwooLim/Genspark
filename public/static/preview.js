@@ -597,6 +597,7 @@
               label: `${bundle.name} · ${concept.id ? `${concept.id} · ` : ''}${concept.name}`,
               note: concept.note || null,
               bundleId: bundle.id,
+              conceptIndex: sources.filter((x) => x.bundleId === bundle.id).length,
               files,
             });
           }
@@ -610,7 +611,14 @@
           byConcept.get(info.concept)[info.portrait ? 'portrait' : 'landscape'] = path;
         }
         for (const [concept, files] of byConcept) {
-          sources.push({ kind: 'proto', label: `${bundle.name} · ${concept}`, note: null, bundleId: bundle.id, files });
+          sources.push({
+            kind: 'proto',
+            label: `${bundle.name} · ${concept}`,
+            note: null,
+            bundleId: bundle.id,
+            conceptIndex: sources.filter((x) => x.bundleId === bundle.id).length,
+            files,
+          });
         }
       }
     } catch {
@@ -726,6 +734,27 @@
     if (name) exportStatusNote.textContent = `현재 로고: ${name} · 30fps · 3초 · 투명 PNG 90장`;
   }
 
+  /** Open on the animation the studio was actually working with. Landing on
+   *  the engine and making the user hunt for the imported concept in the
+   *  picker was the "select it manually every time" complaint. */
+  function selectRecordedAnimation(animation) {
+    if (animation?.kind !== 'proto' || !animation.bundleId) return;
+    const index = sources.findIndex(
+      (source) =>
+        source.kind === 'proto' &&
+        source.bundleId === animation.bundleId &&
+        (source.conceptIndex || 0) === (animation.conceptIndex || 0)
+    );
+    const fallback = sources.findIndex(
+      (source) => source.kind === 'proto' && source.bundleId === animation.bundleId
+    );
+    const chosen = index >= 0 ? index : fallback;
+    if (chosen >= 0) {
+      sourceSelect.value = String(chosen);
+      applySource(sources[chosen]);
+    }
+  }
+
   (async function boot() {
     await loadHandoffSources();
     applySource(sources[0]);
@@ -743,12 +772,14 @@
             ? project.logoBlob
             : await fetch(core.projectLogoUrl(project)).then((r) => r.blob()).catch(() => null);
         if (blob) await applyLogo(blob, project.settings, project.name);
+        selectRecordedAnimation(project.settings?.animation);
         return;
       }
     }
 
     const working = await core.getWorkingLogo();
     if (working?.blob) await applyLogo(working.blob, working.meta?.settings, working.meta?.name);
+    selectRecordedAnimation(working?.meta?.animation);
   })();
 
   updateMuteUI();
