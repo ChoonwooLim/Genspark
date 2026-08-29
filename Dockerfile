@@ -23,15 +23,18 @@ RUN apt-get update \
 
 # Playwright must not fetch its own browsers — the image already has one.
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
-    CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium \
-    NODE_ENV=production
+    CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
-# Dev dependencies stay: `npm start` runs the esbuild bundle step first.
+# The server bundle needs esbuild and @hono/node-server from devDependencies.
+# --include=dev makes this deterministic even if the build environment sets
+# NODE_ENV=production.
 COPY package*.json ./
-RUN npm install --no-audit --no-fund
+RUN npm ci --include=dev --no-audit --no-fund
 
 COPY . .
+RUN npm run build:node
 
-CMD ["npm", "start"]
+ENV NODE_ENV=production
+CMD ["node", "dist-node/server.js"]
