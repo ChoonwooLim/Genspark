@@ -175,7 +175,14 @@
 
     els.detail.hidden = false;
     els.detail.innerHTML = `
-      <header><h3>${esc(h.name)}</h3><button type="button" class="btn btn--quiet" data-action="close-detail">닫기</button></header>
+      <header>
+        <div class="handoff-detail__id">
+          <p class="mono-label">Bundle detail</p>
+          <h3 class="h-card">${esc(h.name)}</h3>
+        </div>
+        <button type="button" class="btn btn--quiet" data-action="close-detail">닫기</button>
+      </header>
+      <h4 class="step"><span class="step__n">01</span> 스펙 <span class="step__rule"></span></h4>
       <dl class="handoff-spec">
         ${[
           spec.duration ? ['Duration', `${spec.duration}s`] : null,
@@ -188,8 +195,13 @@
           .map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`)
           .join('')}
       </dl>
-      ${timeline ? `<table class="handoff-timeline"><thead><tr><th>시간</th><th>프레임</th><th>이벤트</th></tr></thead><tbody>${timeline}</tbody></table>` : ''}
-      <details><summary>파일 ${(h.manifest || []).length}개</summary><ul class="handoff-files">${files}</ul></details>`;
+      ${
+        timeline
+          ? `<h4 class="step"><span class="step__n">02</span> 타임라인 <span class="step__rule"></span></h4>
+             <table class="handoff-timeline"><thead><tr><th>시간</th><th>프레임</th><th>이벤트</th></tr></thead><tbody>${timeline}</tbody></table>`
+          : ''
+      }
+      <details class="handoff-drawer"><summary>파일 ${(h.manifest || []).length}개</summary><ul class="handoff-files">${files}</ul></details>`;
     els.detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
@@ -251,10 +263,13 @@
     els.detail.hidden = false;
     els.detail.innerHTML = `
       <header>
-        <h3>${esc(bundle.name)} · 원본 재생</h3>
+        <div class="handoff-detail__id">
+          <p class="mono-label">Original prototype</p>
+          <h3 class="h-card">${esc(bundle.name)}</h3>
+        </div>
         <button type="button" class="btn btn--quiet" data-action="close-detail">닫기</button>
       </header>
-      <div class="field" style="max-width:420px;margin-bottom:16px">
+      <div class="field" style="max-width:420px;margin-bottom:18px">
         <label for="handoff-preview-pick">재생할 프로토타입 (${ordered.length}개)</label>
         <select id="handoff-preview-pick" class="select">
           ${ordered.map((p) => `<option value="${esc(p)}">${esc(previewLabel(p))}</option>`).join('')}

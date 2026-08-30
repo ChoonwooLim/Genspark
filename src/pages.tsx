@@ -52,6 +52,37 @@ function PageHead({ eyebrow, title, lede, aside }: any) {
   )
 }
 
+/** The header every page that is a *tool* wears — preview, library, handoff,
+ *  archive. Deliberately the studio's own project bar rather than a second
+ *  header style: identity and state on the left, the screen's controls on the
+ *  right, closed by a full-strength ink rule. Only the home page keeps the
+ *  editorial hero, because it is the only page selling rather than working. */
+function PageBar({ eyebrow, title, note, actions }: any) {
+  return (
+    <div class="shell projectbar reveal">
+      <div class="projectbar__id">
+        <p class="eyebrow">{eyebrow}</p>
+        <h1 class="page-title">{title}</h1>
+        {note}
+      </div>
+      {actions ? <div class="projectbar__actions">{actions}</div> : null}
+    </div>
+  )
+}
+
+/** The 01/02… zone head. One figure, one name, a rule to the edge and an
+ *  optional readout — the workbench's spine, reused wherever a page has steps
+ *  so the whole product numbers itself the same way. */
+function Step({ n, children, meta }: any) {
+  return (
+    <h2 class="step">
+      <span class="step__n">{n}</span> {children}
+      <span class="step__rule" aria-hidden="true"></span>
+      {meta ? <span class="step__meta">{meta}</span> : null}
+    </h2>
+  )
+}
+
 /** The canvas plus its overlays. Controls are passed in because the home page
  *  shows the loop with none of them. */
 function Stage({ controls }: { controls?: any }) {
@@ -115,7 +146,7 @@ export function HomePage() {
         }
       />
 
-      <div class="shell reveal">
+      <div class="shell reveal stage-block">
         <Stage />
       </div>
 
@@ -125,10 +156,12 @@ export function HomePage() {
             <p class="eyebrow">Workflow</p>
             <h2 class="h-section">다섯 단계, 다섯 화면</h2>
           </div>
+          {/* The same filled numerals the workbench uses for its zones, so the
+              map of the product and the product itself count identically. */}
           <div class="rows">
             {FEATURES.map((feature) => (
               <a href={feature.href} class="feature-row">
-                <span class="mono-label">{feature.index}</span>
+                <span class="step__n">{feature.index}</span>
                 <span class="feature-row__body">
                   <span class="h-card">{feature.title}</span>
                   <span class="caption">{feature.body}</span>
@@ -153,7 +186,7 @@ export function StudioPage() {
       {/* ===== Project bar — the document header of a tool, not a hero ===== */}
       <div class="shell shell--wide projectbar reveal">
         <div class="projectbar__id">
-          <p class="eyebrow">PLAZION Studio · Workbench</p>
+          <p class="eyebrow">Logo Studio · Workbench</p>
           <input
             id="project-name"
             class="title-input"
@@ -460,126 +493,184 @@ export function StudioPage() {
 export function PreviewPage() {
   return (
     <>
-      <PageHead
+      <PageBar
         eyebrow="Preview · export"
         title="미리보기"
-        lede="현재 로고로 3초 루프를 재생합니다. 투명 PNG 90장을 폴더에 직접 저장하거나 서버 보관함으로 올릴 수 있습니다."
-        aside={
-          <a class="btn btn--quiet" href="/studio">
+        note={
+          <p class="page-note">
+            현재 로고로 3초 루프를 재생하고, 투명 PNG 시퀀스나 서버 렌더로 내보냅니다.
+          </p>
+        }
+        actions={
+          <a class="btn btn--ghost btn--sm" href="/studio">
             작업실에서 편집
           </a>
         }
       />
 
-      <div class="shell reveal" id="export">
+      {/* The whole screen is one dark console, zoned 01–03 the way the
+          workbench is. Everything that was a loose pill on the field now
+          belongs to a numbered step. */}
+      <div class="shell reveal stage-block" id="export">
         <div class="stage">
-          <div class="stage__top">
-            {/* Source first: the built-in engine and an imported prototype are
-                different animations, not two views of one. */}
-            <div class="field stage__source">
-              <label class="mono-label" for="source-select">Animation</label>
-              <select id="source-select" class="select select--on-dark"></select>
-            </div>
+          {/* ---- 01 Source ---- */}
+          <div class="stage__zone">
+            <Step n="01" meta={<><span id="loop-count">0</span> loops</>}>
+              소스
+            </Step>
+            {/* The built-in engine and an imported prototype are different
+                animations, not two views of one — so the picker leads. */}
+            <div class="stage__top">
+              <div class="field console-field stage__source">
+                <label class="mono-label" for="source-select">
+                  애니메이션
+                </label>
+                <select id="source-select" class="select select--on-dark"></select>
+              </div>
 
-            <div id="aspect-toggle" class="segmented" role="tablist" aria-label="화면 비율">
-              <button type="button" class="aspect-btn is-active" data-aspect="landscape" role="tab" aria-selected="true">
-                16:9
-              </button>
-              <button type="button" class="aspect-btn" data-aspect="portrait" role="tab" aria-selected="false">
-                9:16
-              </button>
-            </div>
-
-            <p class="loop-badge">
-              <span id="loop-count">0</span> loops
-            </p>
-          </div>
-
-          <div id="engine-view">
-            <div id="canvas-wrap" class="canvas-wrap canvas-wrap--landscape">
-              <canvas id="intro-canvas" width="1920" height="1080" aria-label="인트로 미리보기"></canvas>
-              <div id="sound-gate" class="sound-gate">
-                <div class="sound-gate__inner">
-                  <h2>사운드와 함께 재생</h2>
-                  <p>브라우저 정책상 클릭 후 오디오가 활성화됩니다</p>
-                  <button id="sound-gate-btn" type="button" class="stage-btn stage-btn--solid">
-                    재생 시작
+              <div class="console-field">
+                <span class="mono-label">화면비</span>
+                <div id="aspect-toggle" class="segmented" role="tablist" aria-label="화면 비율">
+                  <button
+                    type="button"
+                    class="aspect-btn is-active"
+                    data-aspect="landscape"
+                    role="tab"
+                    aria-selected="true"
+                  >
+                    16:9 · 1920×1080
+                  </button>
+                  <button type="button" class="aspect-btn" data-aspect="portrait" role="tab" aria-selected="false">
+                    9:16 · 1080×1920
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Imported prototypes are untrusted HTML: sandboxed, no same-origin. */}
-          <div id="proto-view" class="handoff-frame" hidden></div>
+          {/* ---- 02 Stage ---- */}
+          <div class="stage__zone">
+            <Step n="02">스테이지</Step>
 
-          <p id="source-note" class="export-status__note"></p>
+            <div id="engine-view">
+              <div id="canvas-wrap" class="canvas-wrap canvas-wrap--landscape">
+                <canvas id="intro-canvas" width="1920" height="1080" aria-label="인트로 미리보기"></canvas>
+                <div id="sound-gate" class="sound-gate">
+                  <div class="sound-gate__inner">
+                    <h2>사운드와 함께 재생</h2>
+                    <p>브라우저 정책상 클릭 후 오디오가 활성화됩니다</p>
+                    <button id="sound-gate-btn" type="button" class="stage-btn stage-btn--solid">
+                      재생 시작
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-          <div class="stage__controls">
-            <button id="mute-toggle" type="button" class="stage-btn" aria-pressed="true">
-              <span id="mute-label">사운드 켜짐</span>
-            </button>
-            <button id="restart-btn" type="button" class="stage-btn">
-              다시보기
-            </button>
-            <a id="download-logo" href="/static/plazion_logo.png" download class="stage-btn">
-              로고 원본
-            </a>
-            <button id="download-sequence" type="button" class="stage-btn stage-btn--solid">
-              <span id="sequence-label">폴더에 PNG 시퀀스 저장</span>
-            </button>
-            <button id="upload-sequence" type="button" class="stage-btn" hidden>
-              <span id="upload-label">서버 보관함에 저장</span>
-            </button>
+            {/* Imported prototypes are untrusted HTML: sandboxed, no same-origin. */}
+            <div id="proto-view" class="handoff-frame" hidden></div>
+
+            <p id="source-note" class="stage__note"></p>
+
+            {/* Transport, not export: what you do while watching. Kept apart
+                from 03 so the two irreversible actions below are not sitting
+                in the same row as "다시보기". */}
+            <div class="stage__controls">
+              <button id="mute-toggle" type="button" class="stage-btn" aria-pressed="true">
+                <span id="mute-label">사운드 켜짐</span>
+              </button>
+              <button id="restart-btn" type="button" class="stage-btn">
+                다시보기
+              </button>
+              <a id="download-logo" href="/static/plazion_logo.png" download class="stage-btn">
+                로고 원본
+              </a>
+            </div>
           </div>
 
-          {/* Server-side rendering. Works for imported prototypes too, which
-              the browser cannot capture from a sandboxed iframe. */}
-          <div id="render-panel" class="stage__controls" hidden>
-            <button id="render-mp4" type="button" class="stage-btn stage-btn--solid">
-              MP4 렌더링
-            </button>
-            <label class="stage-field">
-              <span class="mono-label">다른 형식</span>
-              <select id="render-format" class="select select--on-dark">
-                <option value="png">PNG 시퀀스 · 투명 가능</option>
-                <option value="webm">WebM · VP9 · 투명 가능</option>
-                <option value="mov">MOV · ProRes 4444 · 투명 가능</option>
-              </select>
-            </label>
-            <button id="render-alt" type="button" class="stage-btn">
-              선택 형식으로 렌더링
-            </button>
-            <label class="checkline checkline--on-dark">
-              <input id="render-transparent" type="checkbox" />
-              <span>투명 배경</span>
-            </label>
-            <label class="stage-field">
-              <span class="mono-label">FPS</span>
-              <select id="render-fps" class="select select--on-dark select--slim">
-                <option value="24">24</option>
-                <option value="30" selected>30</option>
-                <option value="60">60</option>
-              </select>
-            </label>
-            <label class="stage-field">
-              <span class="mono-label">길이(초)</span>
-              <input id="render-duration" class="input input--on-dark" type="number" min="0.5" max="30" step="0.5" value="5" />
-            </label>
-          </div>
+          {/* ---- 03 Output ---- */}
+          <div class="stage__zone">
+            <Step n="03" meta="브라우저 · 서버">
+              출력
+            </Step>
 
-          <p id="render-status" class="export-status__note" role="status" aria-live="polite"></p>
-          <div id="export-status" class="export-status" role="status" aria-live="polite" hidden>
-            <div class="export-status__row">
-              <span id="export-status-text">프레임 준비 중</span>
-              <span id="export-progress-value">0%</span>
+            <div class="console-actions">
+              <button id="download-sequence" type="button" class="stage-btn stage-btn--solid">
+                <span id="sequence-label">폴더에 PNG 시퀀스 저장</span>
+              </button>
+              <button id="upload-sequence" type="button" class="stage-btn" hidden>
+                <span id="upload-label">서버 보관함에 저장</span>
+              </button>
             </div>
-            <div class="progress" aria-hidden="true">
-              <span id="export-progress-bar"></span>
+
+            {/* Server-side rendering. Works for imported prototypes too, which
+                the browser cannot capture from a sandboxed iframe. Laid out as
+                an inspector — settings first, then the two actions they feed —
+                rather than as one wrapping row of unrelated controls. */}
+            <div id="render-panel" class="console-sub" hidden>
+              <p class="console-sub__head">
+                <span class="mono-label">서버 렌더</span>
+                <span class="step__rule" aria-hidden="true"></span>
+              </p>
+
+              <div class="console-fields">
+                <label class="console-field">
+                  <span class="mono-label">형식</span>
+                  <select id="render-format" class="select select--on-dark">
+                    <option value="png">PNG 시퀀스 · 투명 가능</option>
+                    <option value="webm">WebM · VP9 · 투명 가능</option>
+                    <option value="mov">MOV · ProRes 4444 · 투명 가능</option>
+                  </select>
+                </label>
+                <label class="console-field">
+                  <span class="mono-label">FPS</span>
+                  <select id="render-fps" class="select select--on-dark">
+                    <option value="24">24</option>
+                    <option value="30" selected>30</option>
+                    <option value="60">60</option>
+                  </select>
+                </label>
+                <label class="console-field">
+                  <span class="mono-label">길이(초)</span>
+                  <input
+                    id="render-duration"
+                    class="input input--on-dark"
+                    type="number"
+                    min="0.5"
+                    max="30"
+                    step="0.5"
+                    value="5"
+                  />
+                </label>
+              </div>
+
+              <div class="console-actions">
+                <button id="render-mp4" type="button" class="stage-btn stage-btn--solid">
+                  MP4 렌더링
+                </button>
+                <button id="render-alt" type="button" class="stage-btn">
+                  선택 형식으로 렌더링
+                </button>
+                <label class="checkline checkline--on-dark">
+                  <input id="render-transparent" type="checkbox" />
+                  <span>투명 배경</span>
+                </label>
+              </div>
             </div>
-            <p id="export-status-note" class="export-status__note">
-              현재 화면비 · 30fps · 3초 · 투명 PNG 90장
-            </p>
+
+            <p id="render-status" class="stage__note" role="status" aria-live="polite"></p>
+            <div id="export-status" class="export-status" role="status" aria-live="polite" hidden>
+              <div class="export-status__row">
+                <span id="export-status-text">프레임 준비 중</span>
+                <span id="export-progress-value">0%</span>
+              </div>
+              <div class="progress" aria-hidden="true">
+                <span id="export-progress-bar"></span>
+              </div>
+              <p id="export-status-note" class="export-status__note">
+                현재 화면비 · 30fps · 3초 · 투명 PNG 90장
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -651,28 +742,34 @@ export function PreviewPage() {
 export function LibraryPage() {
   return (
     <>
-      <PageHead
+      <PageBar
         eyebrow="Projects · presets"
         title="라이브러리"
-        lede="저장한 프로젝트와 프리셋. 서버 저장소가 연결돼 있으면 어느 기기에서나 같은 목록이 보입니다."
-        aside={
-          <div class="cluster" style="justify-content:flex-end">
+        note={
+          <p class="page-note">
+            저장한 프로젝트와 프리셋. 서버 저장소가 연결돼 있으면 어느 기기에서나 같은 목록이 보입니다.
+          </p>
+        }
+        actions={
+          <>
             <input id="library-search" class="input" type="search" placeholder="이름으로 검색" />
             <button id="refresh-library-btn" type="button" class="btn btn--ghost btn--sm">
               새로고침
             </button>
-          </div>
+          </>
         }
       />
 
-      <section class="section section--flush">
+      <section class="section section--flush section--tight">
         <div class="shell">
-          <div id="library-grid" class="rows"></div>
+          <div class="section__step">
+            <Step n="01">프로젝트</Step>
+          </div>
+          <div id="library-grid" class="rowset"></div>
           <p id="library-empty" class="empty">
+            <span class="mono-label">Empty</span>
             <strong>아직 저장된 프로젝트가 없습니다</strong>
-            <span class="caption">
-              작업실에서 로고를 확정하고 저장하면 여기에 쌓입니다.
-            </span>
+            <span class="caption">작업실에서 로고를 확정하고 저장하면 여기에 쌓입니다.</span>
             <span>
               <a class="btn btn--quiet" href="/studio">
                 작업실 열기
@@ -682,13 +779,14 @@ export function LibraryPage() {
         </div>
       </section>
 
-      <section class="section">
+      <section class="section section--tight">
         <div class="shell">
-          <div class="section__head">
-            <p class="eyebrow">Presets</p>
-            <h2 class="h-section">프리셋</h2>
+          <div class="section__step">
+            <Step n="02" meta="글로우 · 에너지 · 화면비">
+              프리셋
+            </Step>
           </div>
-          <div id="preset-rows" class="rows"></div>
+          <div id="preset-rows" class="rowset"></div>
         </div>
       </section>
     </>
@@ -700,39 +798,73 @@ export function LibraryPage() {
 export function HandoffPage() {
   return (
     <>
-      <PageHead
+      <PageBar
         eyebrow="Genspark project handoff"
-        title="핸드오프 가져오기"
-        lede="Genspark가 내보낸 프로젝트를 통째로 가져옵니다 — HTML 프로토타입, 애니메이션 참조 코드, 로고와 에셋, 해상도·FPS·타임라인 스펙, Remotion 프로젝트까지."
-        aside={
-          <p id="handoff-status" class="status" role="status" aria-live="polite"></p>
+        title="핸드오프"
+        note={
+          <>
+            <p class="page-note">
+              Genspark가 내보낸 프로젝트를 통째로 가져옵니다 — 프로토타입, 에셋, 스펙, 타임라인까지.
+            </p>
+            <p id="handoff-status" class="status" role="status" aria-live="polite"></p>
+          </>
         }
       />
 
-      <section class="section section--flush" id="handoff-section">
-        <div class="shell stack stack-md">
-          <div class="handoff-intake">
-            <label id="handoff-dropzone" class="dropzone" for="handoff-upload">
-              <input id="handoff-upload" type="file" accept=".zip,application/zip" hidden />
-              <strong class="h-card">project.zip 을 놓거나 클릭</strong>
-              <span class="caption">README의 마스터 스펙과 타임라인을 자동으로 읽습니다</span>
-            </label>
-            <div class="handoff-intake__or">
-              <button id="handoff-folder-btn" type="button" class="btn">
-                압축 푼 폴더 선택
-              </button>
-              <input id="handoff-folder-input" type="file" multiple hidden />
-              <p class="micro">
-                폴더 선택을 지원하지 않는 브라우저에서는 ZIP을 그대로 올리세요.
-              </p>
+      <section class="section section--flush section--tight" id="handoff-section">
+        <div class="shell stack stack-lg">
+          {/* Intake sits on stone, like the workbench's source rail: one white
+              drop target on a warm field, with the format rules it actually
+              enforces set beside it as a spec table rather than a paragraph. */}
+          <div class="panel handoff-intake">
+            <Step n="01" meta="ZIP · 폴더">
+              가져오기
+            </Step>
+            <div class="handoff-intake__grid">
+              <label id="handoff-dropzone" class="dropzone" for="handoff-upload">
+                <input id="handoff-upload" type="file" accept=".zip,application/zip" hidden />
+                <strong class="h-card">project.zip 을 놓거나 클릭</strong>
+                <span class="caption">README의 마스터 스펙과 타임라인을 자동으로 읽습니다</span>
+              </label>
+              <div class="handoff-intake__or">
+                <button id="handoff-folder-btn" type="button" class="btn">
+                  압축 푼 폴더 선택
+                </button>
+                <input id="handoff-folder-input" type="file" multiple hidden />
+                <p class="micro">폴더 선택을 지원하지 않는 브라우저에서는 ZIP을 그대로 올리세요.</p>
+                <dl class="spec-mini">
+                  <div>
+                    <dt>읽는 것</dt>
+                    <dd>README 스펙 · 타임라인</dd>
+                  </div>
+                  <div>
+                    <dt>보관</dt>
+                    <dd>프로토타입 · 에셋 · 로고</dd>
+                  </div>
+                  <div>
+                    <dt>제외</dt>
+                    <dd>node_modules · .git</dd>
+                  </div>
+                </dl>
+              </div>
             </div>
           </div>
 
-          <div id="handoff-list" class="rows"></div>
-          <p id="handoff-empty" class="empty">
-            <strong>아직 가져온 핸드오프가 없습니다</strong>
-            <span class="caption">Genspark 프로젝트를 내보내 압축을 푼 폴더를 선택해 보세요.</span>
-          </p>
+          <div>
+            <div class="section__step">
+              <Step n="02">번들</Step>
+            </div>
+            <div id="handoff-list" class="rowset"></div>
+            <p id="handoff-empty" class="empty">
+              <span class="mono-label">Empty</span>
+              <strong>아직 가져온 핸드오프가 없습니다</strong>
+              <span class="caption">
+                Genspark 프로젝트를 내보내 압축을 푼 폴더를 위에서 선택하면, 스펙과 원본 프로토타입까지 여기에서 바로
+                열립니다.
+              </span>
+            </p>
+          </div>
+
           <div id="handoff-detail" class="handoff-detail" hidden></div>
         </div>
       </section>
@@ -745,26 +877,36 @@ export function HandoffPage() {
 export function ArchivePage() {
   return (
     <>
-      <PageHead
+      <PageBar
         eyebrow="Server archive"
         title="보관함"
-        lede="서버에 올린 PNG 시퀀스 아카이브입니다. 각 항목은 고유 토큰 링크로만 내려받을 수 있습니다."
-        aside={<p id="archive-note" class="status" role="status" aria-live="polite"></p>}
+        note={
+          <p class="page-note">
+            서버에 올린 PNG 시퀀스와 서버 렌더 결과입니다. 각 항목은 고유 토큰 링크로만 내려받을 수 있습니다.
+          </p>
+        }
+        actions={<p id="archive-note" class="status" role="status" aria-live="polite"></p>}
       />
 
-      <section class="section section--flush">
+      <section class="section section--flush section--tight">
         <div class="shell">
-          <div id="library-list" class="rows"></div>
+          <div class="section__step">
+            <Step n="01" meta="최신순">
+              보관 항목
+            </Step>
+          </div>
+          <div id="library-list" class="rowset"></div>
           <p id="archive-empty" class="empty">
+            <span class="mono-label">Empty</span>
             <strong>보관된 시퀀스가 없습니다</strong>
-            <span class="caption">미리보기에서 “서버 보관함에 저장”을 누르면 여기에 쌓입니다.</span>
+            <span class="caption">미리보기에서 “서버 보관함에 저장”이나 서버 렌더를 실행하면 여기에 쌓입니다.</span>
             <span>
               <a class="btn btn--quiet" href="/preview">
                 미리보기로 이동
               </a>
             </span>
           </p>
-          <p id="library-note" class="micro" style="margin-top:24px"></p>
+          <p id="library-note" class="micro" style="margin-top:20px"></p>
         </div>
       </section>
     </>

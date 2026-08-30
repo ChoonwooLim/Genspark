@@ -10,7 +10,7 @@ export const NAV = [
 
 // Bumped when the static bundle changes, so a deploy is visible even where an
 // edge cache holds the previous asset.
-export const ASSET_VERSION = '20260830-workbench-2'
+export const ASSET_VERSION = '20260830-darkbar-1'
 
 type Meta = {
   title?: string
@@ -21,7 +21,7 @@ type Meta = {
 
 export const renderer = jsxRenderer(({ children, title, description, path, scripts }: any) => {
   const meta: Meta = { title, description, path, scripts }
-  const pageTitle = meta.title ? `${meta.title} · PLAZION Studio` : 'PLAZION Studio'
+  const pageTitle = meta.title ? `${meta.title} · Logo Studio` : 'Logo Studio'
 
   return (
     <html lang="ko">
@@ -31,17 +31,20 @@ export const renderer = jsxRenderer(({ children, title, description, path, scrip
         <title>{pageTitle}</title>
         <meta
           name="description"
-          content={meta.description || 'PLAZION 브랜드 인트로를 만들고, 내보내고, 보관하는 작업 도구'}
+          content={meta.description || '로고 인트로를 만들고, 내보내고, 보관하는 작업 도구'}
         />
         <link rel="icon" href="data:," />
         <link href={`/static/system.css?v=${ASSET_VERSION}`} rel="stylesheet" />
         <link href={`/static/stage.css?v=${ASSET_VERSION}`} rel="stylesheet" />
       </head>
       <body>
+        {/* The one piece of persistent chrome, so it is the one piece that is
+            always dark: a near-black rail that frames every page identically
+            and reads as the product itself rather than as part of the page. */}
         <header class="topbar">
           <div class="shell topbar__inner">
             <a class="wordmark" href="/">
-              <b>PLAZION</b>
+              <b>Logo</b>
               <span>Studio</span>
             </a>
             <nav class="topnav" aria-label="주요 기능">
@@ -63,9 +66,18 @@ export const renderer = jsxRenderer(({ children, title, description, path, scrip
 
         <main id="main">{children}</main>
 
+        {/* Left light on purpose. The stage is the darkest field on any page
+            and has to stay that way; a second black slab at the bottom would
+            make three and the stage would stop reading as the subject. */}
         <footer class="footer">
           <div class="shell footer__inner">
-            <p>PLAZION VFX Intro · Voxel Materialize · 3초 루프</p>
+            <div class="footer__id">
+              <a class="wordmark wordmark--footer" href="/">
+                <b>Logo</b>
+                <span>Studio</span>
+              </a>
+              <p class="micro">PLAZION VFX Intro · Voxel Materialize · 3초 루프</p>
+            </div>
             <nav class="cluster" aria-label="바닥글">
               {NAV.map((item) => (
                 <a href={item.href}>{item.label}</a>

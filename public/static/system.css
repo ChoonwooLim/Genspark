@@ -1,4 +1,4 @@
-/* PLAZION Studio — design system
+/* Logo Studio — design system
  *
  * Follows docs/DESIGN-cohere.md: a white editorial canvas interrupted by deep
  * dark product bands, flat surfaces with hairline rules instead of shadows,
@@ -114,13 +114,29 @@ img { max-width: 100%; display: block; }
 
 /* ===== Global navigation — logo left, menu centred, action right == */
 
+/* Dark on every page. The bar is chrome, not content: keeping it near-black
+   everywhere means the white editorial pages and the studio's stone rails both
+   hang off one fixed frame, and the sticky rail stops dissolving into whatever
+   happens to be scrolling under it. It also rhymes with the stage — the only
+   other near-black field in the system — so the product reads top and centre. */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 40;
-  border-bottom: 1px solid var(--hairline);
-  background: color-mix(in srgb, var(--canvas) 88%, transparent);
-  backdrop-filter: saturate(160%) blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  /* Solid first, so a browser without backdrop-filter still gets a black bar
+     rather than a translucent grey one. */
+  background: var(--primary);
+  color: var(--on-dark);
+}
+
+@supports (backdrop-filter: blur(2px)) {
+  .topbar {
+    background: color-mix(in srgb, var(--primary) 86%, transparent);
+    /* Desaturate rather than saturate: what shows through is a white page or
+       the stage, and boosting either just makes the bar look bruised. */
+    backdrop-filter: saturate(80%) blur(14px);
+  }
 }
 
 .topbar__inner {
@@ -151,6 +167,11 @@ img { max-width: 100%; display: block; }
   color: var(--muted);
 }
 
+/* On the dark rail the lockup inverts: the name goes to full white and the
+   mono kicker holds back, so "Logo" carries and "STUDIO" qualifies. */
+.topbar .wordmark { color: var(--on-dark); }
+.topbar .wordmark span { color: rgba(255, 255, 255, 0.5); }
+
 .topnav {
   display: flex;
   justify-content: center;
@@ -160,17 +181,34 @@ img { max-width: 100%; display: block; }
 .topnav a {
   padding: 6px 2px;
   border-bottom: 1px solid transparent;
-  color: var(--body-muted);
+  color: rgba(255, 255, 255, 0.58);
   font-size: 14px;
   text-decoration: none;
   white-space: nowrap;
   transition: color 0.16s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.16s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.topnav a:hover { color: var(--ink); border-bottom-color: var(--hairline); }
-.topnav a[aria-current='page'] { color: var(--primary); border-bottom-color: var(--primary); }
+.topnav a:hover { color: var(--on-dark); border-bottom-color: rgba(255, 255, 255, 0.3); }
+
+/* The current page is stated twice — full white ink and a white underscore —
+   because a colour shift alone is hard to read at 14px on black. */
+.topnav a[aria-current='page'] { color: var(--on-dark); border-bottom-color: var(--on-dark); }
 
 .topbar__action { display: flex; align-items: center; gap: var(--gap-md); }
+
+/* Storage chip, inverted. core.js rewrites className to exactly
+   "chip chip--live" or "chip chip--neutral", so both states are restyled here
+   rather than given a third class the script would wipe. */
+.topbar .chip {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.topbar .chip--live {
+  border-color: rgba(237, 252, 233, 0.34);
+  background: rgba(237, 252, 233, 0.09);
+  color: var(--pale-green);
+}
 
 /* ===== Buttons =================================================== */
 
@@ -242,9 +280,14 @@ img { max-width: 100%; display: block; }
 
 .display,
 .h-section,
-.h-card {
-  /* Korean has no spaces to break on by default, so a long headline splits
-     mid-word. keep-all breaks at word boundaries instead. */
+.h-card,
+.lede,
+.caption,
+.micro,
+.page-note {
+  /* Korean has no spaces to break on by default, so a long line splits
+     mid-word — which was stranding a single syllable on its own last line in
+     every lede and row caption. keep-all breaks at word boundaries instead. */
   word-break: keep-all;
 }
 
@@ -583,6 +626,13 @@ input[type='radio']:disabled { cursor: not-allowed; opacity: 0.45; }
 .footer a { color: var(--slate); text-decoration: none; }
 .footer a:hover { color: var(--ink); }
 
+/* The header's lockup repeated quietly at the foot, so the page is closed by
+   the same mark that opened it and the engine credit has something to hang on
+   instead of floating as a loose sentence. */
+.footer__id { display: grid; gap: 6px; }
+.wordmark--footer { font-size: 15px; color: var(--ink); }
+.wordmark--footer span { font-size: 9px; }
+
 /* ===== Entrance — one orchestrated reveal, then nothing ============ */
 
 @media (prefers-reduced-motion: no-preference) {
@@ -742,15 +792,8 @@ input[type='radio']:disabled { cursor: not-allowed; opacity: 0.45; }
   .archive-row { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto; }
 }
 
-/* Handoff */
-.handoff-intake { display: grid; gap: var(--gap-lg); align-items: center; }
-
-@media (min-width: 820px) {
-  .handoff-intake { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
-}
-
-.handoff-intake__or { display: grid; gap: 8px; justify-items: start; }
-
+/* Handoff — the intake's two columns now live on `.handoff-intake__grid`, so
+   `.handoff-intake` itself is free to be the stone panel that wraps them. */
 .handoff-row {
   display: grid;
   gap: var(--gap-lg);
@@ -1041,10 +1084,17 @@ input[type='radio']:disabled { cursor: not-allowed; opacity: 0.45; }
 .stage-console .canvas-wrap { max-width: none; }
 .stage-console .canvas-wrap--portrait { max-width: 360px; }
 
-.stage-console .step { color: var(--on-dark); }
-.stage-console .step__n { background: var(--on-dark); color: var(--primary); }
-.stage-console .step__rule { background: rgba(255, 255, 255, 0.18); }
-.stage-console .step__meta { color: rgba(255, 255, 255, 0.5); }
+/* The step figure inverts on any near-black field, not just the workbench's.
+   `.stage` (preview and the home hero) is the same surface and was inheriting
+   the light `--ink` label, which put a near-black word on a near-black band. */
+.stage-console .step,
+.stage .step { color: var(--on-dark); }
+.stage-console .step__n,
+.stage .step__n { background: var(--on-dark); color: var(--primary); }
+.stage-console .step__rule,
+.stage .step__rule { background: rgba(255, 255, 255, 0.18); }
+.stage-console .step__meta,
+.stage .step__meta { color: rgba(255, 255, 255, 0.5); }
 
 /* An empty note would otherwise pay for a grid gap it never fills. */
 #studio-anim-note:empty { display: none; }
@@ -1123,3 +1173,219 @@ input[type='radio']:disabled { cursor: not-allowed; opacity: 0.45; }
 
 .projectbar { border-bottom: 1px solid var(--ink); }
 .projectbar__actions { align-items: center; }
+
+/* ===== Tool pages ================================================
+ *
+ * Preview, library, handoff and archive are instruments, not articles, so they
+ * open the way the workbench does: the same project bar, the same eyebrow, the
+ * same ink rule closing the header. The only difference is that their identity
+ * is a heading rather than an editable field, so `.page-title` copies
+ * `.title-input`'s metrics exactly and the two bars line up to the pixel.
+ *
+ * This is also what reclaims the screen. The editorial `.page-head` spends an
+ * 84px display line and ~76px of air before the tool starts, which on a list
+ * page pushed the first row most of the way down the viewport. */
+
+.page-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(26px, 3.4vw, 44px);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+/* The one line of orientation a tool page gets. Sits where the studio's save
+   status sits, so the slot means "current state of this screen" on all five. */
+.page-note { max-width: 62ch; color: var(--body-muted); font-size: 14.5px; line-height: 1.5; }
+.projectbar .status { min-height: 0; }
+
+/* Search, refresh and other header controls: aligned to the bar's baseline
+   rather than stacked into a second column the way the old aside was. */
+.projectbar__actions .input { width: min(260px, 42vw); }
+
+/* A list the page's own script fills. The row classes below carry the rules
+   and the padding themselves, so this is only a block formatting context —
+   `.rows` here would double every hairline. */
+.rowset { display: grid; }
+
+/* ===== Section heads on tool pages ================================ */
+
+/* `.step` is the workbench's spine; on the flat pages it needs a little air
+   above it when it opens a section rather than a rail. */
+.section__step { margin-bottom: var(--gap-xl); }
+
+/* A tool page's h1 is 44px, so the editorial 46px section heading below it was
+   larger than the page's own title — the hierarchy read upside down. On these
+   pages the reference sections step down instead of shouting. */
+.projectbar ~ .section .h-section {
+  font-size: clamp(22px, 2.2vw, 30px);
+  letter-spacing: -0.022em;
+}
+
+/* ===== Empty states ===============================================
+ *
+ * Re-cut as a stone panel. An empty library is the same kind of surface as the
+ * studio's rails, so it should be the same colour and the same 8px shape — and
+ * left-aligned, because a centred dashed box is the house style of every admin
+ * template and reads as a hole in the page rather than a designed state. */
+
+.empty {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  padding: clamp(26px, 3.4vw, 40px);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--soft-stone);
+  text-align: left;
+  color: var(--body-muted);
+}
+
+.empty strong { color: var(--ink); font-family: var(--display); font-size: 21px; font-weight: 400; letter-spacing: -0.02em; }
+.empty .caption { color: var(--body-muted); max-width: 52ch; }
+.empty .mono-label { color: var(--slate); }
+.empty .btn--quiet { color: var(--ink); }
+
+/* ===== Archive rows ===============================================
+ *
+ * The spec used to sit inline with its kind chip and wrap into a ragged second
+ * line under the name column. Chip and spec are now one flex line that keeps
+ * its own column, and the date gets a mono column of its own so a list of ten
+ * scans down the timestamps. */
+
+.archive-row__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.archive-row__date { font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; white-space: nowrap; color: var(--muted); }
+
+@media (min-width: 820px) {
+  .archive-row { grid-template-columns: minmax(0, 1.25fr) minmax(240px, 1fr) auto auto; }
+}
+
+/* ===== Handoff intake ============================================= */
+
+/* The drop target lives on stone now, the same way the studio's upload rail
+   does — white input on a warm field, so the one touchable thing in the zone
+   is obvious without a border fight. */
+.handoff-intake { align-items: stretch; }
+.handoff-intake__grid { display: grid; gap: var(--gap-lg); align-items: stretch; }
+
+@media (min-width: 820px) {
+  .handoff-intake__grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+}
+
+.handoff-intake__or { display: grid; align-content: start; gap: var(--gap-md); justify-items: start; }
+.handoff-intake .dropzone { align-content: center; }
+
+/* ===== Handoff detail ============================================= */
+
+.handoff-detail {
+  padding: clamp(20px, 2.2vw, 30px);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--soft-stone);
+}
+
+.handoff-detail header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--gap-lg); margin-bottom: var(--gap-xl); }
+.handoff-detail__id { display: grid; gap: 6px; min-width: 0; }
+.handoff-detail__id h3 { margin: 0; word-break: break-word; }
+.handoff-detail .step { margin-bottom: var(--gap-lg); }
+.handoff-detail .step + * { margin-top: 0; }
+.handoff-detail .handoff-spec { margin-bottom: var(--gap-2xl); }
+.handoff-detail .handoff-timeline { margin-bottom: var(--gap-2xl); }
+.handoff-detail .field > label { color: var(--body-muted); }
+
+/* Rules inside a stone panel need to be darker than the hairline that works
+   on white, or they disappear into the surface. */
+.handoff-detail .handoff-timeline th,
+.handoff-detail .handoff-timeline td { border-bottom-color: color-mix(in srgb, var(--muted) 34%, transparent); }
+.handoff-detail .handoff-spec dt { color: var(--body-muted); }
+
+/* The file manifest is a drawer, not a section: closed it is one mono line, so
+   a 40-file bundle does not bury the spec it belongs to. */
+.handoff-drawer summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-block: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--muted) 34%, transparent);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--body-muted);
+  list-style: none;
+}
+
+.handoff-drawer summary::-webkit-details-marker { display: none; }
+.handoff-drawer summary::after { content: '+'; margin-left: auto; font-size: 14px; }
+.handoff-drawer[open] summary::after { content: '−'; }
+.handoff-drawer summary:hover { color: var(--ink); }
+.handoff-detail .handoff-files a { color: var(--action-blue); }
+
+/* ===== Home — feature rows ========================================
+ *
+ * The index numerals become the same filled chip the workbench uses for its
+ * 01–04 zones, so the home page is reading out the same spine the tool does
+ * rather than a separate set of grey captions. */
+
+.feature-row { grid-template-columns: auto minmax(0, 1fr) 24px; align-items: start; }
+.feature-row .step__n { margin-top: 7px; }
+.feature-row__body { gap: 7px; }
+.feature-row__go { align-self: center; }
+
+/* ===== Preview — stage console ====================================
+ *
+ * The stage band gets the workbench's zone structure: numbered heads, a rule
+ * to the edge, and sections divided by a hairline instead of a single tall
+ * field with controls scattered across it. */
+
+/* A full-bleed dark band needs air under it before the next section's rule, or
+   the hairline lands flush on the band's bottom edge and reads as a crop. */
+.stage-block { margin-bottom: clamp(24px, 3.4vw, 48px); }
+
+.stage__zone { display: grid; gap: var(--gap-lg); }
+
+.stage__zone + .stage__zone {
+  padding-top: clamp(16px, 2vw, 24px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stage__top { align-items: flex-end; }
+.stage__note { color: rgba(255, 255, 255, 0.45); font-size: 12px; text-align: center; }
+.stage__note:empty { display: none; }
+
+/* Fields on the dark console. Same shape as the studio rail's fields — mono
+   label over a full-width control — so the two inspectors are one control
+   vocabulary seen on two surfaces. */
+.console-field { display: grid; gap: 5px; min-width: 0; }
+.console-field .mono-label { color: rgba(255, 255, 255, 0.45); }
+.console-field .select,
+.console-field .input { width: 100%; min-width: 0; }
+
+.console-panel { display: grid; gap: var(--gap-lg); }
+
+/* Capped rather than allowed to fill the band: a duration field stretched to
+   500px reads as a text area, and the studio's rail sets the expectation that
+   a settings control is about 240px wide. */
+.console-fields {
+  display: grid;
+  gap: var(--gap-md);
+  align-items: end;
+  max-width: 760px;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+}
+
+.console-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-md); }
+
+/* The server-render zone is a step further in than the browser export above
+   it, so it is set in from a rule rather than given another head. */
+.console-sub {
+  display: grid;
+  gap: var(--gap-lg);
+  padding-top: var(--gap-lg);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.console-sub__head { display: flex; align-items: center; gap: 10px; }
+.console-sub__head .mono-label { color: rgba(255, 255, 255, 0.5); flex: none; }
+.console-sub__head .step__rule { background: rgba(255, 255, 255, 0.14); }

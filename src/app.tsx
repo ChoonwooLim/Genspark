@@ -18,7 +18,7 @@ const ROUTES = [
   {
     path: '/',
     title: null,
-    description: 'PLAZION 브랜드 인트로를 만들고, 내보내고, 보관하는 작업 도구',
+    description: '로고 인트로 영상을 만들고, 렌더링하고, 보관하는 작업 도구 — Logo Studio',
     scripts: ['vfx-intro.js', 'hero.js'],
     Page: HomePage,
   },

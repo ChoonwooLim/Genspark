@@ -120,9 +120,12 @@
 .export-status.is-error .progress > span { background: var(--coral); }
 .export-status.is-complete .progress > span { background: var(--pale-green); }
 
-/* Source picker sits on the dark stage, so the select inverts */
+/* Source picker sits on the dark stage, so the select inverts. It is the
+   widest control in the zone and the one that changes what everything below
+   it shows, so it takes the slack while the ratio toggle stays its own size. */
 .stage__source { gap: 6px; }
 .stage__source .mono-label { color: rgba(255, 255, 255, 0.45); }
+.stage__top .stage__source { flex: 1 1 260px; max-width: 420px; }
 
 .select--on-dark {
   min-width: 240px;
@@ -153,9 +156,6 @@
    instead of the light hairline it uses on the handoff page. */
 .stage-console .handoff-frame { border-color: rgba(255, 255, 255, 0.14); border-radius: var(--r-sm); }
 
-.stage-field { display: inline-grid; gap: 4px; }
-.stage-field .mono-label { color: rgba(255, 255, 255, 0.45); }
-.select--slim { min-width: 90px; }
 .input--on-dark {
   width: 110px;
   padding: 8px 12px;
