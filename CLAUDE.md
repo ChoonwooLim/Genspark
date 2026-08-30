@@ -11,9 +11,12 @@
 
 **Logo Sting Studio(AI 생성 + 후반작업)를 이 저장소로 흡수 통합하는 중이다.**
 
-정본은 `docs/superpowers/specs/2026-08-30-logo-studio-unification-design.md`.
-새 세션은 **이 문서를 먼저 읽고** 시작한다. 마이그레이션 단계(M1~M4)와
-비계 제거 목록, 폐기된 앞선 결정이 전부 거기 있다.
+정본은 **`docs/logo-studio-design.md`** — 통합 설계 완성본이다.
+새 세션은 **이 문서를 먼저 읽고** 시작한다. 아키텍처·엔진 설계·오디오 파이프라인·
+마이그레이션(M1~M5)·QA·실측 근거가 전부 거기 한 곳에 있다.
+
+`docs/superpowers/` 아래 문서들은 통합 이전의 기록이며 배너가 달려 있다.
+**갱신하지 않는다.** 고칠 일이 있으면 정본을 고친다.
 
 **핵심 기능은 `seedance` 엔진이다** — 로고 *자체*가 재질과 형태를 바꾸며 만들어진다.
 용융 크롬이 글자로 단조되고, 파편이 글자로 스냅하고, 새싹이 글자를 엮어낸다.
@@ -22,9 +25,9 @@
 
 **M3 이 목표다.** M1·M2 는 자리를 만드는 작업이고 M4 는 그 뒤의 선택지다.
 
-오디오(효과음·음악)는 `docs/superpowers/specs/2026-08-30-audio-pipeline-design.md`.
-**Higgsfield 로는 음악·효과음을 만들 수 없다** — `generate_audio` 는 TTS 전용이고
-`sonilo_music`·`mirelo_text_to_audio` 는 게임 파이프라인 전용이다. 외부 제공자를 쓴다.
+오디오(효과음·음악)는 정본 8장. **Higgsfield 로는 음악·효과음을 만들 수 없다** —
+`generate_audio` 는 TTS 전용이고 `sonilo_music`·`mirelo_text_to_audio` 는 게임
+파이프라인 전용이다. 외부 제공자 3층(MMAudio / ElevenLabs SFX / Stable Audio)을 쓴다.
 
 `docs/superpowers/plans/2026-08-30-logo-sting-core-pipeline.md` 는 통합 이전에
 Python 신규 저장소를 전제로 쓴 계획이다. **인프라 부분은 폐기됐고 로직만 살아남는다.**
