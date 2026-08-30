@@ -10,7 +10,7 @@ export const NAV = [
 
 // Bumped when the static bundle changes, so a deploy is visible even where an
 // edge cache holds the previous asset.
-export const ASSET_VERSION = '20260830-hero-2'
+export const ASSET_VERSION = '20260830-hero-3'
 
 type Meta = {
   title?: string

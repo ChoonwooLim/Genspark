@@ -134,7 +134,7 @@ export function HomePage() {
             <br />다시 태어납니다.
           </>
         }
-        lede="로고 파일 한 장이면 충분합니다. 빛으로 조립되고, 흐트러졌다 안착하고, 남는 건 브랜드의 인상 — 정지된 로고에 생명을 불어넣어 인트로로 만듭니다. 업로드하거나 AI로 만들거나 핸드오프를 가져와서, 애니메이션을 고르고, MP4나 투명 PNG 시퀀스로 내보내세요."
+        lede="로고 파일 한 장이면 충분합니다. 정지된 로고에 생명을 불어넣어 인트로로 만들고, MP4나 투명 PNG 시퀀스로 내보내세요."
         aside={
           <div class="cluster" style="justify-content:flex-end">
             <a class="btn" href="/studio">
