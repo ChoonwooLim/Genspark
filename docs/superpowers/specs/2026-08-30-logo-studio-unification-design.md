@@ -175,7 +175,7 @@ interface Engine {
   duration: 5,
   resolution: '1080p',
   aspect_ratio: job.aspect,
-  generate_audio: true,
+  generate_audio: job.audioMode === 'seedance',   // 'designed' 면 false
   bitrate_mode: 'high',
   medias: [{ role: 'end_image', value: endFrameMediaId }],   // 정확히 하나
   prompt: buildPrompt(preset, brand, color, accent),
@@ -356,6 +356,11 @@ DROP TABLE handoff_bundles;   -- 일회성 내보내기 이후
 | **M2** | 비계 제거(핸드오프 내보내기 후 삭제), PLAZION 값 파라미터화, 엔드프레임 생성 | 임의 브랜드의 엔드프레임을 뽑을 수 있다 |
 | **M3** ★ | `seedance` 엔진 + 프리셋 6종 + post 체인 + QA + 검수 UI | **핵심 기능 완성.** 로고가 VFX 로 변형돼 나온다 |
 | **M4** | `composite` 엔진, Canvas 레이어 모드, 타이밍 파라미터화 | 픽셀 정확도가 필수인 경우의 대안 확보 |
+| **M5** | 오디오 파이프라인 3층 — 설계 SFX · 음악 · 동기 SFX | 효과음·음악이 임팩트에 맞아 떨어진다 |
+
+M5 는 별도 문서로 다룬다 — `2026-08-30-audio-pipeline-design.md`.
+Higgsfield 로는 음악·효과음을 만들 수 없다는 것이 확인됐고(TTS 전용),
+외부 제공자 셋을 층으로 쌓는 설계다.
 
 **M3 이 이 통합의 목표다.** M1·M2 는 M3 을 놓을 자리를 만드는 작업이고, M4 는
 그 뒤에 붙는 안전판이다. **M3 이 끝나면 일단 멈추고 실제로 써 본다.** M4 는

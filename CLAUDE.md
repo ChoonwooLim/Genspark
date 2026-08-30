@@ -22,6 +22,10 @@
 
 **M3 이 목표다.** M1·M2 는 자리를 만드는 작업이고 M4 는 그 뒤의 선택지다.
 
+오디오(효과음·음악)는 `docs/superpowers/specs/2026-08-30-audio-pipeline-design.md`.
+**Higgsfield 로는 음악·효과음을 만들 수 없다** — `generate_audio` 는 TTS 전용이고
+`sonilo_music`·`mirelo_text_to_audio` 는 게임 파이프라인 전용이다. 외부 제공자를 쓴다.
+
 `docs/superpowers/plans/2026-08-30-logo-sting-core-pipeline.md` 는 통합 이전에
 Python 신규 저장소를 전제로 쓴 계획이다. **인프라 부분은 폐기됐고 로직만 살아남는다.**
 파일 상단 배너 참조.
