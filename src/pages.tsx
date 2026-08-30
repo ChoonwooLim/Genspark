@@ -126,14 +126,14 @@ export function HomePage() {
   return (
     <>
       <PageHead
-        eyebrow="3-second brand sting · voxel materialize"
+        eyebrow="Logo Studio · 정지된 로고에서 움직이는 브랜드로"
         title={
           <>
-            로고가 조립되는
-            <br />3초를 만듭니다.
+            당신의 로고가
+            <br />애니메이션으로 다시 태어납니다.
           </>
         }
-        lede="보크셀 그리드로 조립되고, 글리치와 임팩트 플래시를 지나 홀로그램으로 안착하는 브랜드 인트로. 로고를 넣고, 다듬고, 시퀀스로 내보내는 과정을 한 곳에서."
+        lede="로고 파일 한 장이면 충분합니다. 빛으로 조립되고, 흐트러졌다 안착하고, 남는 건 브랜드의 인상 — 정지된 로고에 생명을 불어넣어 인트로로 만듭니다. 업로드하거나 AI로 만들거나 핸드오프를 가져와서, 애니메이션을 고르고, MP4나 투명 PNG 시퀀스로 내보내세요."
         aside={
           <div class="cluster" style="justify-content:flex-end">
             <a class="btn" href="/studio">
