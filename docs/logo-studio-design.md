@@ -1,364 +1,410 @@
-# Logo Studio 설계 — 완성본
+# Logo Studio 설계 — 재설계 정본
 
-작성일: 2026-08-30
+작성일: 2026-08-30 (2차. 1차 통합 설계를 프로 시장용 제품 설계로 전면 재작성)
 상태: 설계 확정, 구현 미착수
 대상 저장소: 이 저장소(Genspark)
 
-> **이 문서가 정본이다.** `docs/superpowers/specs/` 와 `docs/superpowers/plans/` 의
-> 문서들은 이 문서로 통합되기 전의 기록이며 배너가 달려 있다. 구현 계획의 태스크별
-> 코드는 `docs/superpowers/plans/2026-08-30-logo-sting-core-pipeline.md` 를 참조용으로
-> 읽되, 인프라 부분은 폐기됐다.
+> **이 문서가 정본이다.** `docs/superpowers/specs/*` 와 `docs/superpowers/plans/*` 는
+> 이 문서 이전의 기록이다. 1차 설계에서 실측으로 확정된 값(부록 A)과 오디오 세부(§9)는
+> 그대로 승계했고, 나머지는 이 문서가 대체한다. 충돌하면 이 문서를 따른다.
 
 ---
 
 ## 0. 한 문단 요약
 
-브랜드 로고 한 장에서 **로고 자체가 재질과 형태를 바꾸며 만들어지는** 5초 영상을
-생성하고, 효과음·음악까지 붙여 완성본으로 내보내는 웹 스튜디오. 이미 돌고 있는
-Canvas 2D 렌더러 위에 Seedance AI 엔진과 3층 오디오 파이프라인을 얹는다.
-마이그레이션은 M1–M5, 목표는 M3다.
+브랜드 로고 한 장을, **아트 디렉션이 가능한 헐리우드급 로고 스팅과 납품 키트**로 —
+몇 주가 아니라 한 시간 안에. 대상은 프로·에이전시다. 해자는 생성 모델이 아니라
+**디렉션 시스템(Direction IR) · 로고 충실도 파이프라인 · 임팩트 동기 사운드 · 납품
+키트** 네 가지다. 생성 모델은 어댑터 뒤에 두고 교체 가능하게 만든다. 구현은 P0–P6
+일곱 단계, **P2 가 첫 목표**다.
 
 ---
 
-# Part I · 통합
+# Part I · 제품
 
-## 1. 무엇을 통합하는가
+## 1. 포지셔닝
 
-`genspark.twinverse.org` 에서 돌고 있는 **Logo Studio**(이 저장소)와,
-별도로 설계했던 **Logo Sting Studio**(AI 생성 + 후반작업)를 하나의 사이트로 합친다.
+**누구 대신 무엇을 이기는가**
 
-방향은 **흡수**다. Logo Sting Studio 를 이 저장소로 가져오고 Seedance 를 두 번째
-렌더 엔진으로 붙인다. 반대 방향은 성숙도로 봐도 성립하지 않는다.
-
-| | Logo Studio (현재) | Logo Sting Studio (설계만) |
+| 경쟁 영역 | 그들의 한계 | 우리의 승부처 |
 |---|---|---|
-| 렌더 방식 | Canvas 2D 결정론적 | Seedance 2.5 확률적 생성 |
-| 알파 | **있음** (Playwright `omitBackground`) | 없음 |
-| 정확도 | 픽셀 단위 재현 | 매번 다름 |
-| 소요 | 즉시 | 3–6분 |
-| 비용 | 무료 | 45 크레딧/편 |
-| 연출 다양성 | **1종** (보크셀 조립 고정) | 프리셋 6종, 사실상 무한 |
-| 시네마틱 품질 | 컨셉 스케치 수준 | 헐리우드급 |
+| 템플릿 툴 (Renderforest · Motion Array · Canva) | 남과 같은 결과, 로고가 스티커 | 로고 *자체*가 재질과 형태를 바꾸며 만들어지는 고유 연출 |
+| 범용 AI 비디오 (Runway · Kling · Veo · Seedance 직접 사용) | 로고 뭉개짐, 오디오 무동기, 납품 포맷 없음, 매번 프롬프트 노가다 | 로고 충실도 보증 · 임팩트 동기 오디오 · 납품 키트 · 디렉션 시스템 |
+| 모션 디자이너 외주 (AE + Element 3D) | 1–3주, 수백만 원, 수정 왕복 | 1시간, 수만 원대 원가, 변주 격자에서 즉시 고른다 |
 
-**정확히 상보적이다.** 한쪽의 약점이 다른 쪽의 강점이다.
+**해자는 모델이 아니다.** 생성 모델은 6개월마다 바뀌고 상품화된다. 남는 것:
 
-## 2. 통합 논지 — 로고 자체를 VFX 로 변형시킨다
+1. **Direction IR** — 사람이 쓴 연출 의도를 모델 무관 중간 표현으로 컴파일하는 층
+2. **충실도 파이프라인** — 엔드프레임 고정 → 착지 교체 → 자동 QA → 사람 검수. 워드마크 픽셀 보증
+3. **임팩트 동기 사운드** — 화면 사건과 80ms 이내로 맞는 3층 오디오
+4. **납품 키트** — 마스터 · 비율 · 알파 · 스틸 · 루프 · 인트로/아웃트로 세트
 
-**이 제품의 핵심 기능은 `seedance` 엔진이다.** 로고를 배경 위에 얹는 것이 아니라,
-**로고 자체가 재질과 형태를 바꾸며 만들어지는 것**이다.
+## 2. 제품 원칙 (설계 전체를 구속)
 
-- 용융 크롬이 흘러 **글자 하나하나로 단조**되고 백열에서 브랜드 색으로 식는다
-- 크리스탈 파편이 날아와 **글자로 스냅**해 조립된다
-- 번개가 응결하며 **글자로 결정화**된다
-- 물방울이 모여 **글자로 뭉쳐지고** 수면 반사와 함께 정착한다
-- 새싹이 자라 **글자를 엮어낸다**
+- **로고는 절대 그리게 하지 않는다.** 모델은 *로고에 도달하는 과정*만 만든다. 실제 로고를 `end_image` 로 못 박는다
+- **비싼 호출 앞에는 항상 싼 단계가 있다.** 드래프트 → 정제 → 히어로. 첫 클릭에 히어로 원가를 태우지 않는다
+- **검수는 사람이 한다.** 자동 QA 는 통과/경고 배지를 붙일 뿐 승인하지 않는다
+- **생성본은 불변.** 모든 후처리는 파생 행. 오디오를 고치려고 영상을 재생성하지 않는다
+- **원가가 항상 보인다.** 모든 생성 버튼에 예상 원가, 프로젝트마다 지출 원장
+- **벤더는 교체 가능.** 생성 · 오디오 · 저장소 전부 어댑터 뒤에
+- **간편함은 기본값을 숨기는 것이지 낮추는 것이 아니다.** Quick 경로와 Direct 경로의 품질·성능은 완전히 같다
+- **모든 단계를 눈으로 본다.** 파이프라인의 각 단계가 산출물 미리보기와 함께 실시간으로 보인다
 
-로고가 VFX 의 **주인공**이지 위에 붙은 스티커가 아니다. Canvas 로는 이런 것을 만들 수
-없다 — 연출 하나가 손으로 코딩한 보크셀 조립뿐이고, 새 연출마다 렌더러를 다시 짜야 한다.
+## 3. 사용자 워크플로와 화면
 
-### 로고가 뭉개지지 않게 하는 법
-
-AI 가 로고를 그리므로 워드마크가 망가질 위험이 있다. 세 겹으로 막는다.
-
-| 겹 | 방법 | 근거 |
-|---|---|---|
-| 1 | `end_image` 로 **착지 지점을 고정** | 최종 로고가 목표 프레임으로 수렴한다 |
-| 2 | 후반작업에서 **마지막 구간을 원본으로 크로스페이드** | 착지가 픽셀 정확해진다 |
-| 3 | 콘택트 시트로 **중간 구간을 사람이 확인** | 붕괴는 자동 판정이 불가능하다 |
-
-실측: `end_image` 만으로도 워드마크 자획이 살아남았다. 로고가 화면 폭 15%(글자 높이
-약 40px)로 작았는데도 그랬다. "확산 모델은 타이포를 뭉갠다"는 일반론은 이 방식에
-과하게 비관적이다.
-
-### 세 엔진의 위상
+프로의 실제 작업 순서를 그대로 화면으로 만든다. 6단계, 각 단계가 하나의 화면.
 
 ```
-              ┌─ seedance   ★ 핵심. 로고 자체가 변형되며 만들어진다
-로고 1장 ─────┼─ canvas       결정론적 · 알파 · 무료 · 즉시. 프리뷰와 레이어 소스
-              └─ composite    로고를 절대 건드리면 안 되는 경우의 대안
+Brand ─▶ Direct ─▶ Explore ─▶ Refine ─▶ Sound ─▶ Deliver
+ 브랜드     디렉션     탐색      정제      사운드     납품
+ (무료)    (무료)   (저가 N편)  (히어로)   (소액)    (무료)
 ```
 
-`composite` 는 **핵심이 아니라 안전판**이다. 로고가 VFX 에 참여하지 못하므로
-연출의 힘이 떨어진다. 기본값이 아니다.
+### 3.1 Brand — 브랜드 킷
 
-## 3. 폐기된 앞선 결정 두 가지
+- 입력: SVG(우선) / PNG(알파) / 시퀀스 마지막 프레임. 업로드 즉시 오염도 · 불투명 픽셀 비율 스캔 결과 표시 (기준은 §11)
+- 자동 추출: 지배색 · 보조색, 심볼/워드마크 분리(연결 성분 분석), 라이트/다크 배경용 변형
+- 세이프존과 기본 배치(16:9 폭 62% · 9:16 78% · 1:1 72%, 소스 800px 미만이면 자동 축소)를 캔버스에서 미리 조정 — 이것이 엔드프레임의 원천
+- 산출: `brands` · `logos`. 한 브랜드에 로고 여러 개(심볼 · 워드마크 · 락업)
 
-정직하게 남긴다.
+### 3.2 Direct — 디렉션 보드 (제품의 심장)
 
-### 폐기 1 — Python 신규 저장소
+시작은 **Look 프리셋**(§5.3)이지만 프리셋은 보드의 초기값일 뿐이다.
 
-`2026-08-30-logo-sting-core-pipeline.md` 는 Python + Pillow + ffmpeg 로 12개 태스크를
-짠 계획이다. **인프라 부분이 이미 여기 구현돼 있다.**
+| 항목 | 내용 | 예 |
+|---|---|---|
+| World | 배경 환경 | 딥블랙 스튜디오 · 안개 낀 숲 · 수면 |
+| Material | 로고가 만들어지는 재질 | 용융 크롬 · 크리스탈 · 물 · 빛 |
+| Formation | 형성 동사 | 단조 · 스냅 조립 · 결정화 · 응집 · 엮음 · 드러남 |
+| Camera | 카메라 | 정면 고정 · 느린 돌리인 · 로우앵글 상승 |
+| Light | 조명 | 림라이트 · 볼류메트릭 · 소프트 |
+| Tempo | `impactAt` · 라이저 시작 · 착지 홀드 길이 | 타임라인 바를 끌어서 조정 |
+| Palette | 브랜드에서 파생 | 덮어쓰기 가능 |
+| Constraints | 부정 지시 | 자연계 프리셋은 자동 채움 (`no fire, no flames, no smoke …`) |
+| Pro prompt | 위 항목이 컴파일된 프롬프트 | 열어서 직접 수정. 수정 시 필드와의 링크 표시 |
 
-| P1a 계획의 태스크 | 이 저장소의 현황 |
-|---|---|
-| Task 01 ffmpeg 래퍼 | `render.node.ts` 의 `run()` · Dockerfile 에 ffmpeg 포함 |
-| Task 05–07 후반작업 체인 | `encodeVideo()` 확장으로 흡수 |
-| Task 09 콘택트 시트 | Playwright 프레임 캡처 경로 재사용 |
-| Task 10 납품 세트 | `sequences` · `renders` 다운로드 흐름 존재 |
-| 잡 상태 모델 | `renders` 테이블에 `status`/`download_token`/`storage_path` 존재 |
+- 각 항목은 몇 개의 선택지 + 자유 입력
+- 보드는 **버전이 있다.** 어떤 렌더가 어떤 보드 버전에서 나왔는지 항상 추적. "Material 만 바꿔 재탐색"은 자식 버전
+- 우측에 **엔드프레임 라이브 프리뷰**(canvas 엔진, 무료 · 즉시) — 여백 · 배치를 여기서 확정
 
-살아남는 것은 **로직**이다 — 프리셋 6종 프롬프트, 로고 오염도 스캔, 엔드프레임 생성,
-QA 지표, Seedance 어댑터. 전부 TypeScript 로 이식한다.
+### 3.3 Explore — 탐색 격자
 
-### 폐기 2 — 알파를 뒤로 미룬 결정
+- 보드 하나로 **N편(기본 4) 드래프트**를 저비용으로 생성: 같은 모델 · 같은 시드 정책 · 해상도만 낮춤(480–720p) · 오디오 없음
+- 격자에서 재생 · 비교. ★ 표시한 드래프트의 시드 · 설정을 정제 단계로 넘김
+- 각 칸에 드래프트 원가와 히어로 승격 예상 원가 표시
+- 마지막 프레임과 엔드프레임의 SSIM 이 0.6 미만이면 "착지 실패" 배지 — 승격 전에 거른다
 
-루마키로 Seedance 출력에서 매트를 뽑는 데 실패했고(부록 A), 그래서 알파를 미뤘다.
-**이 앱이 알파를 이미 뽑는다.** Canvas 2D 를 Playwright 가 `omitBackground: true` 로
-캡처한다. AI 출력에서 매트를 뽑을 이유가 없어졌다.
+### 3.4 Refine — 정제와 히어로 렌더
+
+- 선택한 드래프트 기준으로 보드 한 축만 바꿔 재탐색 가능
+- **히어로 렌더**: 1080p → 업스케일 4K 옵션. 착지 교체 · 타이밍 정규화 자동 적용
+- **검수 화면**: 콘택트 시트 + 착지 SSIM + ΔE + 경고 배지. 승인/반려. 반려 사유는 보드 버전에 기록
+
+### 3.5 Sound — 사운드 디자인
+
+- 승인된 히어로 위에 3층 자동 조립(§9). 파형 위에 `impactAt` 마커
+- 층별 게인 · 뮤트, 히어로 히트 교체(프롬프트 재생성, 소액), 음악 무드 재선택
+- 결과는 `renders.audio_manifest` 로 저장. 모든 조작은 매니페스트 수정 + 재믹스(ffmpeg, 무료)
+
+### 3.6 Deliver — 납품 키트
+
+§12. 마스터 · 비율 · 알파 · 포스터 프레임 · 루프 · 인트로/아웃트로 · 무음본. ZIP 일괄 + 개별 링크.
+**리뷰 링크**: 클라이언트가 로그인 없이 보고 승인/코멘트. 버전 이력 포함.
+
+### 3.7 두 가지 속도, 한 파이프라인
+
+- **Quick 경로 (기본)**: 로고 올리기 → Look 하나 고르기 → **[스팅 만들기]** 한 번. 브랜드 추출 · 엔드프레임 · 보드 기본값 · 드래프트 4편 · 자동 QA 까지 자동 진행. 사용자는 격자에서 하나 고르고 [히어로로] 만 누른다. 사운드 · 납품도 기본값으로 자동. **클릭 3번이면 납품 키트까지**
+- **Direct 경로**: 같은 화면에서 "디렉션 열기"를 누르면 보드 전체가 펼쳐진다. 점진적 노출
+- 두 경로의 품질 · 성능은 **완전히 동일**하다. Quick 은 보드를 숨길 뿐 기본값을 낮추지 않고, 드래프트 깔때기 · 착지 교체 · QA 도 그대로 돈다
+
+### 3.8 파이프라인 모니터 — 모든 단계를 눈으로 본다
+
+어떤 렌더든 클릭하면 **실행 타임라인**이 열린다. 워커의 각 단계가 SSE 로 실시간 갱신된다.
+
+```
+● 엔드프레임 생성      0.8s   [썸네일]
+● 제출 (seedance)      1.2s   job_id · 예상 3–6분 · 45cr 차감
+◐ 생성 중              2m14s  진행률 · 벤더 상태 원문
+○ 다운로드
+○ 착지 교체 · 트림           [교체 전/후 마지막 프레임 나란히]
+○ 자동 QA                    [SSIM 0.994 ✓ · ΔE 2.1 ✓ · 정렬 −12ms ✓]
+○ 콘택트 시트                [시트 이미지]
+○ 오디오 3층                 [층별 파형 + impactAt 마커]
+○ 믹스 · 라우드니스          [−16.2 LUFS ✓ · −1.0 dBTP ✓]
+```
+
+- 단계마다 **산출물 미리보기가 붙는다** — 끝나기 전에도 엔드프레임 · 콘택트 시트 · 파형을 본다
+- 실패는 단계명 · 에러 원문 · 재개 가능 지점을 표시. "fetched 부터 다시" 버튼이 여기 붙는다
+- 프로젝트 상단에 **진행 중 잡 트레이**: 동시 렌더 각각의 단계 · 경과 · 원가를 한 줄씩
+- 워커 로그(ffmpeg 명령 · 벤더 응답 원문)는 접힌 패널 — 디버깅할 때만 편다
+- 모니터는 별도 상태가 아니라 `pipeline_steps` 테이블을 그대로 그린다 (§7)
+
+### 3.9 현 화면과의 관계
+
+작업실 → Brand + Direct · 미리보기 → Explore/Refine 검수 · 라이브러리 → Brand 킷 목록 · 보관함 → 프로젝트 목록 · 핸드오프 → 제거(§13).
+
+---
+
+# Part II · 시스템
 
 ## 4. 아키텍처
 
-런타임·배포는 그대로 둔다. Hono + TypeScript + Vite, Node 컨테이너, Orbitron,
-PostgreSQL, Playwright + Chromium + ffmpeg 이 든 Debian 이미지.
+**유지:** Hono · TypeScript · Node 컨테이너 · Postgres · Playwright + Chromium + ffmpeg Debian 이미지 · Orbitron 배포 · Dockerfile(`# CUSTOM` 마커).
+**바꾸는 것:** 프로세스 분리, 모듈 경계, 프론트.
 
 ```
-              ┌──────────────── 렌더 엔진 ────────────────┐
-페이지        │                                            │
-  작업실 ──▶ │  canvas.engine    Playwright + Canvas 2D   │──▶ renders
-  미리보기    │  seedance.engine  Higgsfield 어댑터         │
-  라이브러리  │  composite.engine canvas 알파 ⊕ seedance    │
-              └────────────────────────────────────────────┘
-                            │
-                    post 체인 (ffmpeg)
-              착지 · 타이밍 · 업스케일
-                            │
-                    audio 파이프라인 (3층)
-              설계 SFX · 음악 · 동기 SFX · 믹스
+┌──────────────── 브라우저 (React) ────────────────┐
+│ Brand · Direct · Explore · Refine · Sound · Deliver │
+│ 파이프라인 모니터 (SSE)   ·   리뷰 링크 (공개 뷰)   │
+└──────────────┬──────────────────────┬────────────┘
+               │ REST                  │ SSE
+┌──────────────▼──────────────────────▼────────────┐
+│ web 프로세스 (Hono)                                │
+│  api/brand  api/direction  api/jobs  api/review    │
+│  api/deliver  api/ledger   events(SSE)             │
+└──────────────┬────────────────────────────────────┘
+               │ Postgres 큐 (pg-boss)
+┌──────────────▼────────────────────────────────────┐
+│ worker 프로세스 (같은 이미지, 다른 엔트리)            │
+│  pipeline/  brand-scan · endframe · generate ·      │
+│             post · qa · audio · deliver              │
+│  engines/   registry + adapters (seedance, kling…)  │
+│  audio/     providers (elevenlabs, stable, mmaudio) │
+│  media/     ffmpeg · playwright 래퍼                 │
+│  storage/   volume | s3 어댑터                       │
+└───────────────────────────────────────────────────┘
 ```
 
-### 새로 만드는 모듈
+### 4.1 핵심 결정
 
-| 파일 | 책임 |
+1. **web/worker 분리, 큐는 Postgres(pg-boss).** Redis 없이 이미 있는 DB 로 큐 · 재시도 · 스케줄. 3–6분 잡이 웹 프로세스를 잡지 않고 컨테이너 재시작에도 잡이 살아남는다. 같은 Docker 이미지에 `CMD` 만 다르게 — Orbitron 에 컨테이너 2개(`web`, `worker`).
+2. **파이프라인은 단계 그래프.** 각 단계는 `(input, ctx) → artifact` 순수 함수. 산출물을 DB 에 기록한 뒤 다음 단계를 큐에 넣는다. "fetched 부터 재개"가 공짜로 나오고, 모니터 UI 는 단계 기록을 그대로 그린다.
+3. **엔진 계약은 능력 선언형** (§5.1). 라우터가 `capabilities` 로 후보를 거른다.
+4. **Direction IR** 은 모델 무관 JSON (§5.2). 각 어댑터의 `compile()` 이 자기 모델 문법으로 변환한다. 프리셋 = IR 초기값 묶음.
+5. **벤더 통신은 직접 HTTP.** Higgsfield/Seedance 는 MCP 가 아니라 REST 어댑터로. MCP 는 사람이 세션에서 쓰는 도구지 서버가 의존할 층이 아니다.
+6. **저장소 어댑터.** 지금은 볼륨. 인터페이스 뒤에 두어 나중에 MinIO/S3 로 무중단 전환.
+7. **프론트: React + Vite + TypeScript.** TanStack Query(서버 상태) · Zustand(보드 편집 상태) · SSE 훅. 디자인 시스템은 `docs/DESIGN-cohere.md` 토큰 승계. **스트랭글러**: React 앱을 `/app/*` 에 올리고 화면을 하나씩 이관, 완료 시 옛 페이지 삭제.
+8. **인증**: 워크스페이스 + 매직링크 이메일 로그인, 역할(owner / editor / reviewer). 리뷰 링크는 토큰 기반 공개 뷰. 구현은 P6 이지만 **모든 테이블에 `workspace_id` 를 처음부터 넣는다.** 그때까지는 단일 워크스페이스 + `STUDIO_ADMIN_TOKEN`.
+
+### 4.2 모듈 지도 (신규)
+
+| 경로 | 책임 |
 |---|---|
-| `src/engines/registry.ts` | 엔진 계약과 등록 |
-| `src/engines/canvas.ts` | 현재 `render.node.ts` 의 Playwright 캡처를 추출 |
-| `src/engines/seedance.ts` | Higgsfield 제출·폴링·다운로드 |
-| `src/engines/composite.ts` | 플레이트 + 알파 레이어 합성 |
-| `src/presets.ts` | 프리셋 6종 정의와 프롬프트 조립 |
-| `src/post.ts` | 타이밍·착지 교체 |
-| `src/qa.ts` | 자동 지표와 콘택트 시트 |
-| `src/logo-scan.ts` | 업로드 로고 검증 |
-| `src/audio/providers/*.ts` | MMAudio · ElevenLabs · Stable Audio |
-| `src/audio/plan.ts` | 프리셋 오디오 스펙 → 층별 요청 조립 |
-| `src/audio/mix.ts` | ffmpeg 믹스·덕킹·라우드니스 |
+| `src/web/` | Hono 앱, REST 라우트, SSE |
+| `src/worker/` | pg-boss 소비자, 파이프라인 실행기 |
+| `src/pipeline/*.ts` | 단계 함수: `brand-scan` · `endframe` · `generate` · `post` · `qa` · `audio` · `deliver` |
+| `src/engines/registry.ts` | 엔진 계약 · 등록 · 라우터 |
+| `src/engines/canvas.ts` | 현 `render.node.ts` 의 Playwright 캡처 이식 |
+| `src/engines/seedance.ts` | Seedance REST 어댑터 + `compile()` |
+| `src/engines/composite.ts` | 플레이트 + 알파 레이어 합성 (P5) |
+| `src/direction/ir.ts` · `presets.ts` | IR 스키마 · 프리셋 정의 |
+| `src/audio/providers/*.ts` · `plan.ts` · `mix.ts` | §9 |
+| `src/media/ffmpeg.ts` · `playwright.ts` | 프로세스 래퍼 |
+| `src/storage/` | `volume.ts` · `s3.ts` · 인터페이스 |
+| `src/db/` | 스키마 · 마이그레이션 · 쿼리 |
+| `app/` | React 프론트 (Vite 별도 진입) |
 
-`render.node.ts`(500줄)는 **오케스트레이터로 축소**한다. 잡 수명주기와 DB 만 다루고
-실제 렌더는 엔진에 위임한다. 지금은 Playwright 캡처가 이 파일 안에 박혀 있어
-엔진을 추가할 자리가 없다.
+`render.node.ts` · `handoff.node.ts` · `sequences.node.ts` · `public/static/*.js` 는 이관 완료 시 삭제.
 
-### 엔진 계약
+## 5. 생성 엔진
+
+### 5.1 엔진 계약
 
 ```ts
-type EngineJob = {
-  logo: LogoRef
-  preset: PresetKey
-  aspect: '16:9' | '9:16' | '1:1'
-  durationSeconds: number
-  fps: number
-  transparent: boolean
-  audioMode: 'designed' | 'seedance' | 'silent'
-}
-
-interface Engine {
-  readonly id: 'canvas' | 'seedance' | 'composite'
-  readonly supportsAlpha: boolean
-  readonly costsCredits: boolean
-  render(job: EngineJob, ctx: RenderContext): Promise<RenderArtifact>
+interface GenEngine {
+  id: string                                   // 'seedance-2.5' | 'kling-2.x' …
+  capabilities: {
+    endImage: boolean; startImage: boolean; audio: boolean
+    durations: number[]; resolutions: string[]; aspects: string[]
+    draftTier: boolean                         // 저해상 저가 드래프트 지원
+  }
+  estimate(req: GenRequest): Promise<Cost>     // 제출 전 프리플라이트
+  submit(req: GenRequest): Promise<VendorJob>  // 크레딧 차감 지점. 재시도 금지
+  poll(job: VendorJob): Promise<VendorStatus>
+  fetch(job: VendorJob): Promise<ArtifactPath>
+  compile(ir: DirectionIR): VendorPrompt       // IR → 이 모델의 프롬프트·파라미터
 }
 ```
 
-`costsCredits` 를 계약에 넣는 이유 — **크레딧을 쓰는 엔진은 자동 재시도하지 않는다.**
-오케스트레이터가 이 플래그로 재시도 정책을 가른다.
+- `endImage: false` 인 모델은 히어로 렌더에 못 쓴다. 드래프트 전용
+- 라우팅: `capabilities` 필터 → 프리셋 선호 엔진 → 사용자 선택. 기본은 Seedance 2.5
+- **`submit()` 은 어떤 경우에도 자동 재시도하지 않는다.** 타임아웃 · 네트워크 오류 · 벤더 5xx 전부 `failed` 로 기록하고 사람이 재제출한다. 폴링 타임아웃도 재제출하지 않는다 — 크레딧 중복 차감
 
----
+### 5.2 Direction IR
 
-# Part II · 엔진
+```ts
+type DirectionIR = {
+  world: string; material: string; formation: string
+  camera: string; light: string
+  tempo: { impactAt: number; riserFrom: number; holdSeconds: number }
+  palette: { brand: string; accent: string; background: string }
+  constraints: string[]                         // 부정 지시
+  freeText?: string                             // Pro prompt 수정분
+  brand: { name: string; logoId: string }
+}
+```
 
-## 5. seedance 엔진 — 핵심
-
-### 요청 조립
+`compile()` 은 IR 을 모델별 프롬프트로 만든다. Seedance 에서 실측으로 확정된 요청 형태:
 
 ```ts
 {
   model: 'seedance_2_5',
-  mode: 'omni_reference',      // 필수. 빠뜨리면 422
-  duration: 5,
-  resolution: '1080p',
-  aspect_ratio: job.aspect,
-  generate_audio: job.audioMode === 'seedance',
-  bitrate_mode: 'high',
+  mode: 'omni_reference',        // 필수. 없으면 422. end_image 는 이 모드에서만 허용
+  duration: 5, resolution: '1080p', aspect_ratio, bitrate_mode: 'high',
+  generate_audio: audioMode === 'seedance',
   medias: [{ role: 'end_image', value: endFrameMediaId }],   // 정확히 하나
-  prompt: buildPrompt(preset, brand, color, accent),
+  prompt: compile(ir),
 }
 ```
 
-실측으로 확정된 제약 둘.
+- `start_image` 와 `end_image` 를 **둘 다** 주면 최종 워드마크가 은색으로 변질된다. `end_image` 만
+- 자연 계열은 부정 지시를 길게 — 모델 기본값이 "화려한 VFX" 라 `no fire, no flames, no smoke, no molten metal, no explosion, no sparks, no neon, no lightning` 없이는 불꽃이 들어온다
+- REST API 의 파라미터명이 MCP 와 다를 수 있다. **P2 첫 태스크는 API 스파이크(1편 생성)** 로 이 제약을 재검증하는 것
 
-- `mode` 를 빠뜨리면 **422** — `end_image` 는 `omni_reference` 에서만 허용된다
-- `start_image` 와 `end_image` 를 **둘 다** 주면 최종 워드마크가 **은색으로 변질**된다.
-  브랜드 컬러를 잃는다. `end_image` 하나만 준다
+### 5.3 프리셋 (IR 초기값)
 
-### 프리셋 6종
-
-| 키 | 연출 | 배경 | LUFS | 디졸브 | 임팩트 |
+| 키 | Material / Formation | World | LUFS | 디졸브 | impactAt |
 |---|---|---|---|---|---|
-| `forge` | 용융 크롬이 글자로 단조 | 딥블랙 | −16 | 0.6s | 2.2s |
-| `shard` | 크리스탈 파편이 조립 | 딥블랙 | −16 | 0.5s | 2.6s |
-| `arc` | 번개가 응결·결정화 | 딥바이올렛 | −16 | 0.5s | 2.8s |
-| `dew` | 물방울이 모여 뭉쳐짐 | 오프화이트 | −20 | 0.3s | 3.1s |
-| `growth` | 새싹·넝쿨이 엮어냄 | 오프화이트 | −20 | 0.3s | 3.4s |
-| `mist` | 안개가 걷히며 드러남 | 딥그린 | −20 | 0.3s | 2.9s |
+| `forge` | 용융 크롬 / 단조 | 딥블랙 | −16 | 0.6s | 2.2s |
+| `shard` | 크리스탈 파편 / 스냅 조립 | 딥블랙 | −16 | 0.5s | 2.6s |
+| `arc` | 번개 / 응결 · 결정화 | 딥바이올렛 | −16 | 0.5s | 2.8s |
+| `dew` | 물방울 / 응집 | 오프화이트 | −20 | 0.3s | 3.1s |
+| `growth` | 새싹 · 넝쿨 / 엮음 | 오프화이트 | −20 | 0.3s | 3.4s |
+| `mist` | 안개 / 드러남 | 딥그린 | −20 | 0.3s | 2.9s |
 
-프롬프트 템플릿에 `{brand}` `{color}` `{accent}` 만 치환한다.
+디졸브가 프리셋마다 다른 이유 — 정적 배경(안개 · 물)은 짧아도 티가 안 나지만, 잔불이 움직이는 `forge` 는 짧으면 착지 교체 지점의 점프가 보인다. `impactAt` 은 초기값이며 콘택트 시트의 프레임 차분 피크로 자동 추정해 제안하고 사용자가 Tempo 에서 끈다.
 
-**자연 계열에는 부정 지시를 길게 나열해야 한다.** 모델 기본값이 "화려한 VFX" 라
-`no fire, no flames, no smoke, no molten metal, no explosion, no sparks, no neon,
-no lightning` 을 명시하지 않으면 불꽃이 들어온다.
+### 5.4 엔드프레임
 
-디졸브 길이가 프리셋마다 다른 이유 — 배경이 정적인 컨셉(안개·물)은 짧아도 티가 안
-나지만, 잔불이 움직이는 `forge` 는 짧으면 착지 교체 지점의 점프가 보인다.
+canvas 엔진이 만든다. 브랜드 배경 위에 로고를 정확한 크기 · 위치로 배치한 정지 프레임. **여백이 중요하다** — 레퍼런스의 프레이밍이 그대로 복사되므로 꽉 차면 잘려 나온다. 기본 폭 비율은 §3.1. 소스가 800px 미만이면 비율을 낮춘다. 억지로 키우면 뭉개지고, 여백이 늘어난 쪽이 절제된 브랜드 톤에 맞는다.
 
-임팩트 시각은 콘택트 시트에서 읽은 초기값이다. 오디오 배치에 쓴다(8장).
+### 5.5 canvas 엔진 — 뒷받침
 
-### 엔드프레임은 canvas 엔진이 만든다
+사라지지 않는다. 엔드프레임 생성 · 무료 즉시 구도 확인 · 알파 레이어 소스. 기존 3초/30fps 하드코딩은 요청 파라미터로 뺀다.
 
-브랜드 배경 위에 로고를 정확한 크기·위치로 배치한 정지 프레임이다.
-**여백이 중요하다** — 레퍼런스 프레임의 프레이밍이 그대로 복사되므로 로고가 꽉 차면
-결과물에서 잘려 나온다. 16:9 는 폭 62%, 9:16 은 78%, 1:1 은 72% 를 기본으로 한다.
+### 5.6 composite 엔진 — 안전판 (P5)
 
-로고 소스가 800px 미만이면 폭 비율을 자동으로 낮춘다. 억지로 키우면 뭉개지는데,
-여백이 늘어난 쪽이 오히려 절제된 브랜드 톤에 맞는다.
-
-### 후반작업
-
-| 단계 | 처리 | 실측 근거 |
-|---|---|---|
-| 착지 교체 | 마지막 구간을 엔드프레임으로 크로스페이드 | `end_image` 를 줘도 로고가 미세하게 이동·축소된다 |
-| 타이밍 | 5.00초로 트림, fps 정규화 | 5초 요청 → 5.06초, 항상 24fps 출력 |
-
-라우드니스 정규화는 **오디오 믹스가 흡수한다**(8장). 두 번 정규화하면 덕킹이 뭉개진다.
-
-### 비율은 재생성이다
-
-리프레임하면 로고가 잘린다. 비율마다 엔드프레임을 새로 만들고 다시 생성해야 하며
-**크레딧이 그만큼 배로 든다.** UI 에서 원가로 명시한다.
-
-### 폴링
-
-오디오 포함 1080p 5초는 **3–6분** 걸린다. 진행 중 `type` 이 `"image"` 로 표시되는
-것은 Seedance 2.5 의 표기 오류이므로 `status` 만 신뢰한다.
-**타임아웃이 나도 재제출하지 않는다** — 크레딧이 중복 차감된다.
-
-## 6. canvas 엔진 — 뒷받침
-
-사라지지 않는다. 역할이 바뀐다 — **최종 연출을 만드는 엔진이 아니라 `seedance` 를
-뒷받침하는 도구**다.
-
-- 엔드프레임을 만든다
-- 무료·즉시라서 구도와 여백을 크레딧 없이 잡아볼 수 있다
-- 알파 레이어가 필요할 때 뽑는다
-
-기존 3초/30fps 하드코딩을 `EngineJob` 파라미터로 뺀다.
-
-## 7. composite 엔진 — 안전판
-
-기본값이 아니다. 워드마크가 한 픽셀도 달라지면 안 되는 경우에만 쓴다.
-
-### 타이밍 정합
-
-Canvas 3초 30fps, Seedance 5초 24fps. 그대로는 못 겹친다.
-**Canvas 쪽을 맞춘다** — 결정론적이고 무료이므로 어떤 길이·fps 로든 다시 렌더하면 된다.
-Seedance 쪽을 맞추려 들면 재생성이라 크레딧이 든다.
-
-### 로고 레이어 모드
-
-현재 Canvas 애니메이션은 보크셀 조립 → 글리치 → 임팩트 → 홀로그램의 완결된 연출이다.
-플레이트 위에 겹치면 **두 개의 연출이 싸운다.** composite 용 레이어 모드를 추가한다 —
-로고가 플레이트의 임팩트 타이밍에 맞춰 나타나 정지하는 것까지만 하고 자체 배경 효과는 끈다.
-
-### 합성
+워드마크가 한 픽셀도 달라지면 안 되는 경우만. Canvas 쪽을 Seedance 의 5초/24fps 에 맞춘다(결정론적 · 무료). Canvas 레이어 모드: 플레이트의 임팩트 타이밍에 로고가 나타나 정지하는 것까지만, 자체 배경 효과는 끈다. 이 모드에서는 `end_image` 를 주지 않고 프롬프트에 `Absolutely no text, no letters, no logo, no typography anywhere in frame` 을 넣는다.
 
 ```bash
 ffmpeg -i plate.mp4 -framerate {fps} -i logo_%04d.png \
-  -filter_complex "[0:v][1:v]overlay=format=auto:shortest=1" \
-  -map 0:a? ...
+  -filter_complex "[0:v][1:v]overlay=format=auto:shortest=1" -map 0:a? …
 ```
 
-### Seedance 프롬프트 분기
+## 6. 데이터 모델
 
-composite 모드에서는 `end_image` 를 주지 않고 **로고를 그리지 말라는 지시**를 넣는다.
+**원칙:** 생성본 불변 · 모든 파생은 별개 행 · 모든 행에 `workspace_id` · 원장은 append-only.
 
-> Absolutely no text, no letters, no logo, no typography anywhere in frame.
+```
+workspaces ─┬─ users (membership, role)
+            ├─ brands ─── logos (variant: symbol|wordmark|lockup, theme: light|dark,
+            │                    brand_rgb, scan jsonb, safe_zone jsonb)
+            ├─ projects ─┬─ directions   (보드 버전. ir jsonb, preset_key, parent_id)
+            │            ├─ generations  (벤더 원본. engine, vendor_job_id, tier: draft|hero,
+            │            │                seed, ir_snapshot jsonb, direction_id,
+            │            │                cost_credits, status, storage_key)
+            │            ├─ renders      (파생본. source_generation_id, kind: landed|sounded|
+            │            │                delivery, audio_manifest jsonb, qa jsonb, storage_key)
+            │            ├─ pipeline_runs ─ pipeline_steps
+            │            ├─ deliverables (format, aspect, variant, storage_key, render_id)
+            │            └─ review_links ─ review_comments (token, status, at_seconds)
+            └─ ledger    (append-only: kind, credits, usd, ref_type, ref_id, at)
+```
 
----
+- `directions.parent_id` — 보드 버전 트리
+- `generations.ir_snapshot` — 제출 시점의 IR 사본. 보드를 나중에 고쳐도 불변
+- `renders.source_generation_id` — 착지 교체본 · 사운드본 · 납품본이 전부 한 생성본을 가리킨다. 생성(유료)과 마무리(무료)를 분리 보관해야 오디오 게인 하나 고치려고 재생성하는 일이 없다
+- `pipeline_steps` — `run_id, name, status, started_at, ended_at, artifact_key, metrics jsonb, error text, vendor_raw jsonb`. 모니터의 한 줄 = 한 행
+- `ledger` — 벤더 응답 시점에 기록. `generations.cost_credits` 는 캐시, 원장이 정본. 과금 단계의 기초 데이터이므로 지금부터 쌓는다
 
-# Part III · 오디오
+**기존 테이블 이관:** `studio_logos → logos` · `studio_presets → directions`(프리셋 원형) · `renders → generations + renders` 분리(engine `canvas` · tier `hero` 로 백필) · `handoff_bundles` 일회성 내보내기 후 삭제 · 시퀀스 업로드는 `logos` 소스 첨부로 흡수.
 
-## 8. 오디오 파이프라인 — 3층
+## 7. 상태기계
 
-### 문제
+### 7.1 생성 (`generations.status`)
 
-`seedance` 가 만든 영상은 그림은 좋은데 **소리가 범용적이다.** Seedance 내장 오디오는
-−21 ~ −41dB 로 편차가 크고 임팩트 순간과 정확히 맞지 않는다. 로고 스팅은 5초 안에
-승부가 나므로 **임팩트가 프레임 단위로 맞아야 한다.** 0.2초 늦으면 싸구려가 된다.
+```
+queued → submitted → generating → fetched → landed → qa_done → in_review → approved
+                        │                                          │
+                        └─ failed(step, error, resumable_from)      └─ rejected(reason → direction 버전에 기록)
+```
 
-### Higgsfield 로는 안 된다 — 확인된 사실
+- `fetched` 이후는 전부 무료 단계. **재개는 `fetched` 부터.** 그 앞은 재제출 = 재과금이라 사람이 명시적으로 누른다
+- 드래프트는 `landed` · `qa_done` 을 건너뛰고 `fetched → in_review`(격자 표시). 착지 교체 · 전체 QA 는 히어로만
+- `approved` 된 히어로만 Sound · Deliver 로 진입
 
-`generate_audio` 는 **TTS 전용**이다. 도구 문서에 명시돼 있다.
+### 7.2 파이프라인 런 (`pipeline_runs.kind`)
 
-> This tool only generates speech: it cannot generate music or sound effects for
-> general use, and there is no standalone music/SFX model here.
+`brand_scan` · `endframe` · `draft_batch` · `hero` · `sound` · `deliver`. 런마다 단계 목록이 고정돼 있어 모니터가 시작 전부터 빈 체크리스트를 그린다.
 
-카탈로그의 `sonilo_music`·`mirelo_text_to_audio` 는 **게임 생성 파이프라인 전용**이다.
-→ 외부 제공자가 필요하다.
+### 7.3 리뷰 링크
 
-### 3층 구조
+`open → approved | changes_requested`. 코멘트는 `at_seconds` 를 가지며 파형 · 콘택트 시트 위에 핀으로 표시된다.
 
-| 층 | 제공자 | 무엇을 푸는가 |
+## 8. 후반작업과 QA
+
+### 8.1 후반작업 (히어로)
+
+| 단계 | 처리 | 실측 근거 |
 |---|---|---|
-| **L1 동기 SFX** | MMAudio (video-to-audio) | 화면 사건에 붙는 소리. 모델이 프레임을 보므로 **동기가 자동** |
-| **L2 설계 SFX** | ElevenLabs SFX v2 | 아트 디렉션이 필요한 히어로 히트 |
-| **L3 음악** | Stable Audio (기본) / ElevenLabs Music v2 | 5초 시네마틱 베드 |
+| 착지 교체 | 마지막 구간을 엔드프레임으로 크로스페이드(프리셋 디졸브 길이) | `end_image` 를 줘도 로고가 미세하게 이동 · 축소된다 |
+| 타이밍 | 5.00초 트림, fps 정규화 | 5초 요청 → 5.056초, 항상 24fps |
 
-셋 다 필요한 이유 — **MMAudio 혼자면** 화면에 보이는 것만 소리가 난다. 서브베이스 붐은
-화면에 없다. **ElevenLabs 혼자면** 타이밍을 사람이 매번 잡아야 한다. 화염 크래클·물방울
-처럼 화면을 따라가야 하는 소리는 손으로 못 맞춘다. **음악은 둘 다 못 만든다.**
+라우드니스 정규화는 오디오 믹스가 흡수한다. 두 번 정규화하면 덕킹이 뭉개진다.
 
-### 동기화 — 층마다 다르게
+### 8.2 자동 QA
 
-| 층 | 방법 |
-|---|---|
-| L1 | **자동.** 모델이 프레임을 본다 |
-| L2 | **프리셋의 `impactAt`** 으로 배치 (ffmpeg `adelay`) |
-| L3 | **composition_plan** 으로 섹션을 나눠 다운비트를 임팩트에 맞춘다 |
+| 지표 | 기준 | 적용 |
+|---|---|---|
+| 드래프트 착지 SSIM (마지막 프레임 vs 엔드프레임) | ≥ 0.6 아니면 "착지 실패" 배지 | 드래프트 |
+| 착지 프레임 SSIM (교체 후 vs 엔드프레임) | ≥ 0.99 | 히어로 |
+| 최종 프레임 로고 색 vs 브랜드 컬러 | ΔE < 5 | 히어로 |
+| 출력 라우드니스 | 프리셋 목표 ±1 LUFS | 사운드 |
+| 트루피크 | ≤ −1.0 dBTP | 사운드 |
+| 임팩트 정렬 (오디오 피크 vs `impactAt`) | ±80 ms (`ffmpeg astats`) | 사운드 |
+| 층별 무음 검사 | 각 층 > −50 dB | 사운드 |
+| 로고 소스 오염도 | < 2 % | 입력 |
+| 로고 소스 불투명 픽셀 비율 | ≥ 60 % | 입력 |
+| 시드 재현성 | 같은 IR · 시드 재생성 시 유사도 기록 (모델별 "정제 가능성" 지표 축적) | 정제 |
+
+**자동 판정 불가능한 것** — 중간 구간에서 워드마크가 뭉개졌는지. `shard` 는 중간에 글자가 흩어지는 것이 의도라 붕괴와 구분되지 않는다. → 콘택트 시트 + 파형 · 임팩트 마커를 검수 화면에 띄우고 사람이 승인한다. "완전 자동"을 주장하지 않는다.
+
+콘택트 시트는 **사람이 보는 용도**다. 생성 모델에 레퍼런스로 넣으면 격자가 출력에 박힌다.
+
+## 9. 오디오 — 3층
+
+### 9.1 문제
+
+생성 모델의 내장 오디오는 범용적이고 편차가 크다(부록 A.2: −21 ~ −41dB). 로고 스팅은 5초 안에 승부가 나므로 임팩트가 프레임 단위로 맞아야 한다. 0.2초 늦으면 싸구려가 된다.
+
+**Higgsfield 로는 안 된다.** `generate_audio` 는 TTS 전용이고 `sonilo_music` · `mirelo_text_to_audio` 는 게임 파이프라인 전용이다. 외부 제공자가 필요하다.
+
+### 9.2 3층 구조
+
+| 층 | 제공자 | 무엇을 푸는가 | 동기화 |
+|---|---|---|---|
+| L1 동기 SFX | MMAudio (video-to-audio) | 화면 사건에 붙는 소리 | 자동 — 모델이 프레임을 본다 |
+| L2 설계 SFX | ElevenLabs SFX v2 | 아트 디렉션이 필요한 히어로 히트 | Tempo `impactAt` 으로 배치 (`adelay`) |
+| L3 음악 | Stable Audio (기본) / ElevenLabs Music v2 | 5초 시네마틱 베드 | composition_plan 으로 다운비트를 임팩트에 강제 |
+
+셋 다 필요한 이유 — MMAudio 혼자면 화면에 없는 서브베이스 붐이 없다. ElevenLabs 혼자면 화염 크래클 · 물방울 같은 화면 추종음을 손으로 못 맞춘다. 음악은 둘 다 못 만든다.
 
 ```ts
-type PresetAudio = {
-  impactAt: number          // 초. 히어로 히트가 터지는 시점
-  riserFrom: number
+type AudioPlan = {
+  impactAt: number; riserFrom: number
   musicPrompt: string
   heroSfx: Array<{ at: number; prompt: string; gainDb: number }>
 }
 ```
 
-5초 스팅의 음악 구성은 두 섹션이면 충분하다.
+음악은 두 섹션 — `[0, impactAt]` 라이저(저역 드론 + 상승 텍스처), `[impactAt, 5.0]` 잔향과 해소.
 
-```
-[0.0 – impactAt]   긴장을 쌓는 라이저. 저역 드론 + 상승 텍스처
-[impactAt – 5.0]   임팩트 후 잔향과 해소
-```
-
-**임팩트에 다운비트가 오도록 구성으로 강제한다.** 생성된 음악을 나중에 밀어 맞추는
-것보다 훨씬 정확하다.
-
-### 믹스
+### 9.3 믹스
 
 ```bash
 ffmpeg -y -i video.mp4 -i music.wav -i l1.wav -i hero0.wav -i hero1.wav \
   -filter_complex "\
-    [3:a]adelay=2200|2200[h0]; \
-    [4:a]adelay=2450|2450[h1]; \
+    [3:a]adelay=2200|2200[h0]; [4:a]adelay=2450|2450[h1]; \
     [2:a][h0][h1]amix=inputs=3:normalize=0[sfx]; \
     [1:a]volume=-6dB[mus]; \
     [mus][sfx]sidechaincompress=threshold=0.05:ratio=6:attack=5:release=250[ducked]; \
@@ -366,251 +412,156 @@ ffmpeg -y -i video.mp4 -i music.wav -i l1.wav -i hero0.wav -i hero1.wav \
   -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k out.mp4
 ```
 
-**사이드체인 덕킹이 핵심이다.** 임팩트가 터지는 순간 음악을 눌러야 히트가 크게 들린다.
-이것 하나로 아마추어와 헐리우드가 갈린다.
+**사이드체인 덕킹이 핵심이다.** 임팩트 순간 음악을 눌러야 히트가 크게 들린다. 목표 라우드니스는 프리셋 값(VFX −16 · 자연 −20 LUFS), 트루피크 −1.0 dBTP.
 
-라우드니스 목표는 프리셋 값 — VFX −16 LUFS, 자연 −20 LUFS. 트루피크 −1.0dBTP.
+생성 모델 내장 오디오는 기본 끈다. `audioMode` = `designed`(기본) / `vendor`(빠르고 싸게) / `silent`(편집자용).
 
-### Seedance 내장 오디오는 끈다
+### 9.4 제공자 추상화
 
-`generate_audio: false`. 범용 오디오가 설계된 3층과 싸운다. 다만 지우지 않고
-`audioMode` 로 남긴다 — `designed`(기본) / `seedance`(빠르고 싸게) / `silent`(편집자용).
-
-### 제공자 추상화는 선택이 아니라 필수
-
-**Udio 는 2025년 10월 29일에 다운로드를 전면 중단했다.** 제공자는 예고 없이 바뀐다.
+Udio 는 2025-10-29 다운로드를 전면 중단했다. 제공자는 예고 없이 바뀐다.
 
 ```ts
-interface SfxProvider  { generate(prompt: string, seconds: number): Promise<Buffer> }
-interface MusicProvider{ compose(plan: CompositionPlan): Promise<Buffer> }
-interface V2AProvider  { fromVideo(video: Path, hint?: string): Promise<Buffer> }
+interface SfxProvider   { generate(prompt: string, seconds: number): Promise<Buffer> }
+interface MusicProvider { compose(plan: CompositionPlan): Promise<Buffer> }
+interface V2AProvider   { fromVideo(video: Path, hint?: string): Promise<Buffer> }
 ```
 
-환경변수로 구현을 고른다 — `AUDIO_SFX_PROVIDER` · `AUDIO_MUSIC_PROVIDER` ·
-`AUDIO_V2A_PROVIDER`. 한 제공자가 죽어도 나머지 두 층은 계속 돈다.
+`AUDIO_SFX_PROVIDER` · `AUDIO_MUSIC_PROVIDER` · `AUDIO_V2A_PROVIDER` 로 고른다. 하나가 죽어도 나머지 두 층은 돈다.
 
-### ⚠ 라이선스 — 상용 출시 전 반드시 확인
+### 9.5 ⚠ 라이선스 — 상용 출시 전 반드시 확인
 
 | 제공자 | 상업 이용 | 주의 |
 |---|---|---|
-| ElevenLabs SFX v2 | 유료 플랜에서 royalty-free | 무료 플랜은 출처 표기 의무. 효과당 $0.0194 |
-| ElevenLabs Music v2 | 광범위하게 클리어됨 | **광고·영화·TV·게임·엔터프라이즈 배포는 추가 라이선스 필요** |
-| Stable Audio | AudioSparx 등 라이선스 데이터셋 | 프레임워크가 더 명확. 기악 중심이라 스팅에 적합 |
-| MMAudio | 오픈 모델 | **가중치 라이선스 확인 필요.** 호스팅 제공자 약관도 별개 |
+| ElevenLabs SFX v2 | 유료 플랜 royalty-free | 무료 플랜은 출처 표기 의무. 효과당 $0.0194 |
+| ElevenLabs Music v2 | 광범위 클리어 | **광고 · 영화 · TV · 게임 · 엔터프라이즈 배포는 추가 라이선스** |
+| Stable Audio | 라이선스 데이터셋 | 프레임워크가 명확. 기악 중심이라 스팅에 적합 |
+| MMAudio | 오픈 모델 | 가중치 라이선스 · 호스팅 약관 별도 확인 |
 
-**로고 스팅은 광고에 해당할 소지가 크다.** ElevenLabs Music 의 "추가 라이선스" 조항이
-기본 경로를 막을 수 있다. → **음악 층 기본 제공자를 Stable Audio 로 둔다.**
-상용 출시 전에 법적으로 확인하고 결론을 이 문서에 갱신한다.
-확인하지 않은 채로 외부 고객에게 팔면 안 된다.
+로고 스팅은 광고에 해당할 소지가 크다. → **음악 기본 제공자는 Stable Audio.** P6 전 법적 확인 결과를 이 문서에 갱신한다. 확인 전 외부 판매 금지.
 
-### 비용
+### 9.6 비용
 
-오디오는 영상 대비 무시할 만하다. 아끼려 들 이유가 없다.
+오디오는 영상 대비 무시할 만하다. 영상 1편 45크레딧 · SFX 효과당 $0.0194 · 음악 5초 소액 · MMAudio 초당 과금 소액.
 
-| 항목 | 대략 |
+## 10. 원가와 원장
+
+- 모든 생성 버튼에 `estimate()` 결과를 표시한다. 드래프트 배치는 편수 × 단가, 히어로 승격 · 4K 업스케일 · 비율 재생성은 각각 원가 명시
+- 프로젝트 상단에 지출 합계(크레딧 · USD) 상시 표시
+- 프로젝트별 **예산 상한** — 초과 시 제출 버튼 비활성
+- `ledger` 는 벤더 응답 시점에 append. 취소 · 환불은 음수 행
+
+## 11. 브랜드 킷 세부
+
+- 로고 소스 우선순위: 브랜드 원본 SVG/PNG(알파) → 시퀀스 마지막 프레임 → SVG 래스터
+- 시퀀스에서 뽑을 때 오염도 스캔 필수(부록 A.4). 마지막 프레임은 글로우 잔광이 알파에 섞인다. 오염 ≥ 2% 또는 불투명 < 60% 면 경고하고 원본 에셋을 권한다
+- 브랜드 컬러는 히스토그램으로 자동 추출(오염도 스캐너와 같은 패스). 사용자가 덮어쓴다
+- 하드코딩 제거: 보크셀 셀 크기 · 샘플 폭 · `#020009` 배경 · 그라디언트 · 임팩트 플래시 · PRNG seed · 타임라인 구간 값 → 전부 프리셋/IR/브랜드 파생값
+
+## 12. 납품 키트
+
+| 항목 | 생성 방식 | 원가 |
+|---|---|---|
+| 마스터 H.264 1080p / 4K | 히어로 + 사운드 믹스 | 무료 (4K 업스케일만 크레딧) |
+| ProRes 4444 / WebM 알파 | canvas 레이어 또는 composite 경로에서만 가능. 아니면 "알파 불가" 명시 | 무료 |
+| 비율 변형 16:9 · 9:16 · 1:1 | (a) 재생성 — 원가 명시 (b) 로고 세이프 리프레임 — 로고 바운딩 유지 크롭 | 선택 |
+| 포스터 프레임 PNG | 착지 프레임 | 무료 |
+| 루프본 | 착지 홀드 연장 | 무료 |
+| 인트로 / 아웃트로 | 아웃트로 = 착지 후 홀드 · 인트로 = 착지 후 페이드아웃 | 무료 |
+| 무음본 | 오디오 스트림 제거 | 무료 |
+
+AI 출력에서 매트를 뽑지 않는다(부록 A.1). 알파가 필요하면 canvas 레이어를 따로 렌더한다. ZIP 은 요청 시 즉석 생성. 리뷰 링크는 키트 전체를 공개 뷰로 보여준다.
+
+## 13. 비계 정리
+
+| 대상 | 사유 |
 |---|---|
-| Seedance 영상 1편 | 45 크레딧 |
-| ElevenLabs SFX (히어로 히트 2–3개) | 효과당 $0.0194 |
-| 음악 5초 | 크레딧제, 편당 소액 |
-| MMAudio (Replicate·fal) | 초당 과금, 5초는 소액 |
+| 핸드오프 번들 임포트 (`handoff.node.ts` 612줄 + `handoff.js` + 페이지 + `handoff_bundles`) | Genspark Design zip 을 받아 HTML 프로토타입을 서빙하는 개발자 도구. 제품 사용자에게 의미 없고 zip 폭탄 방어 · CSP 샌드박스 유지 비용만 크다. 삭제 전 기존 번들 일회성 내보내기 |
+| `/api/ai/import-genspark-image` | Genspark 내부 UI 결과를 URL 로 끌어오는 경로. 외부 사용자에겐 없는 워크플로 |
+| `public/static/plazion_logo.png` | 기본 로고가 특정 브랜드일 이유가 없다 |
+| `public/static/*.js` 바닐라 프론트 | React 이관 완료 화면부터 순차 삭제 |
+
+**유지:** Genspark AI 로고 생성(Brand 킷의 소스 옵션) · Cloudflare Workers 진입점(정적 셸 전용).
 
 ---
 
-# Part IV · 정리와 실행
-
-## 9. 비계 정리
-
-제품이 아니라 개발 과정의 흔적인 것들을 제거한다.
-
-### 제거
-
-| 대상 | 규모 | 사유 |
-|---|---|---|
-| 핸드오프 번들 임포트 | `handoff.node.ts` 612줄 + `handoff.js` + 페이지 + `handoff_bundles` 테이블 | Genspark Design 핸드오프 zip 을 받아 HTML 프로토타입을 서빙하는 개발자 도구. 제품 사용자에게 의미가 없고 zip 폭탄 방어·CSP 샌드박스 유지 비용만 크다 |
-| `/api/ai/import-genspark-image` | `genspark-image.ts` 일부 | Genspark 내부 UI 결과를 URL 로 끌어오는 경로. 외부 사용자에게는 존재하지 않는 워크플로 |
-| `public/static/plazion_logo.png` | 에셋 | 기본 로고가 특정 브랜드일 이유가 없다 |
-
-핸드오프는 삭제 전에 **기존 번들을 내려받는 일회성 내보내기**를 제공한다.
-DB 에 든 것을 그냥 버리지 않는다.
-
-### 유지
-
-Genspark AI 로고 생성 · 라이브러리 · 보관함 · 프리셋 · 시퀀스 업로드 ·
-Cloudflare Workers 진입점(정적 셸 전용).
-
-## 10. 브랜드 중립화
-
-PLAZION 고정값이 9개 파일에 흩어져 있다. GreenB 작업조차 매번 코드를 고쳐야 한다.
-
-| 현재 하드코딩 | 이동 위치 |
-|---|---|
-| 보크셀 셀 14px / 11px | 프리셋 파라미터 |
-| 로고 샘플 폭 1200px / 620px | `ASPECTS` 테이블 |
-| `#020009` 배경 | 프리셋 `backgroundRgb` |
-| `#7A4DFF → #B782FF` 그라디언트 | 브랜드 컬러에서 파생 |
-| `rgba(230,210,255,.55)` 임팩트 플래시 | 브랜드 컬러에서 파생 |
-| PRNG seed 4242 | 프로젝트별 seed |
-| 타임라인 구간 값 | 프리셋 `timeline` |
-
-**브랜드 컬러는 로고에서 자동 추출한다.** 업로드된 로고의 지배 색조를 뽑아 기본값으로
-제시하고 사용자가 덮어쓸 수 있게 한다. 이 추출기는 로고 오염도 스캐너와 같은
-히스토그램을 쓰므로 추가 비용이 거의 없다.
-
-## 11. 데이터 모델
-
-기존 테이블을 최대한 유지한다. `renders` 는 이미 잡 모델로 충분하다.
-
-```sql
-ALTER TABLE renders ADD COLUMN engine           text NOT NULL DEFAULT 'canvas';
-ALTER TABLE renders ADD COLUMN preset           text;
-ALTER TABLE renders ADD COLUMN source_render_id uuid REFERENCES renders(id);
-ALTER TABLE renders ADD COLUMN qa               jsonb;
-ALTER TABLE renders ADD COLUMN credits_spent    integer NOT NULL DEFAULT 0;
-ALTER TABLE renders ADD COLUMN audio_mode       text NOT NULL DEFAULT 'designed';
-ALTER TABLE renders ADD COLUMN audio_manifest   jsonb;
-ALTER TABLE renders ADD COLUMN audio_cost_usd   numeric(10,4) NOT NULL DEFAULT 0;
-
-ALTER TABLE studio_logos ADD COLUMN brand_rgb text;
-ALTER TABLE studio_logos ADD COLUMN scan      jsonb;
-
-DROP TABLE handoff_bundles;   -- 일회성 내보내기 이후
-```
-
-**`source_render_id` 가 핵심이다.** 후반작업본은 생성본을 참조하는 별개 행이다.
-생성(유료)과 마무리(무료)를 분리 보관해야 오디오 게인 하나 고치려고 45크레딧을
-다시 쓰는 일이 없다.
-
-**`audio_manifest` 는 오디오만 다시 만들기 위해 남긴다.** 음악이 마음에 안 들어서
-영상을 재생성하는 일은 없어야 한다. 매니페스트가 있으면 같은 영상에 다른 오디오를
-얹는 것이 무료에 가깝다.
-
-`credits_spent` 와 `audio_cost_usd` 는 과금 단계의 기초 데이터다. 지금부터 쌓지 않으면
-나중에 원가를 역산할 수 없다.
-
-## 12. 상태 흐름
-
-```
-queued → generating → generated → posting → scoring → review → approved
-                          ↑            │        │        │
-                          └────────────┴────────┴────────┘
-                                재마무리는 generated 부터
-실패 시: failed (+ 실패 단계명, 에러 원문 보존)
-```
-
-**`generated` 에서 멈춰 세울 수 있어야 한다.** 생성이 마음에 안 들면 거기서 버리고
-재생성하고, 마무리·오디오 문제면 `generated` 부터 다시 태운다.
-
-`review` 가 사람 게이트다. 콘택트 시트 · 파형 · 자동 QA 결과를 나란히 띄운다.
-
-## 13. QA
-
-### 자동 판정
-
-| 지표 | 기준 |
-|---|---|
-| 착지 프레임 SSIM (교체 후 vs 엔드프레임) | ≥ 0.99 |
-| 출력 라우드니스 | 프리셋 목표 ±1 LUFS |
-| 트루피크 | ≤ −1.0 dBTP |
-| **임팩트 정렬** (오디오 피크 시각 vs `impactAt`) | ±80 ms |
-| 오디오 층별 무음 검사 | 각 층 > −50 dB |
-| 최종 프레임 로고 색상 vs 브랜드 컬러 | ΔE < 5 |
-| 로고 소스 오염도 (입력) | < 2 % |
-| 로고 소스 불투명 픽셀 비율 (입력) | ≥ 60 % |
-
-80ms 는 사람이 어긋남을 느끼기 시작하는 경계다. `ffmpeg astats` 로 피크 시각을 뽑는다.
-
-### 자동 판정 불가능
-
-**중간 구간에서 워드마크가 뭉개졌는지는 알고리즘이 판정할 수 없다.** `shard` 는 중간에
-글자가 흩어지는 것이 의도된 연출이라 붕괴와 구분되지 않는다.
-
-→ **콘택트 시트 + 파형·임팩트 마커를 검수 화면에 띄우고 사람이 승인한다.**
-"완전 자동"을 억지로 주장하지 않는 편이 제품 신뢰에 낫다.
+# Part III · 실행
 
 ## 14. 마이그레이션
 
-각 단계가 끝난 시점에 사이트가 정상 동작해야 한다. 큰 뭉치로 갈아엎지 않는다.
+각 단계 끝에 사이트가 정상 동작해야 한다. **P2 가 첫 목표** — 거기서 실제 브랜드로 써 보고 이후를 재우선순위한다.
 
 | 단계 | 내용 | 끝났을 때 |
 |---|---|---|
-| **M1** | 엔진 레지스트리 도입, Playwright 캡처를 `canvas` 엔진으로 추출 | 동작 동일. 순수 리팩토링 |
-| **M2** | 비계 제거, PLAZION 값 파라미터화, 엔드프레임 생성 | 임의 브랜드의 엔드프레임을 뽑을 수 있다 |
-| **M3** ★ | `seedance` 엔진 + 프리셋 6종 + post + QA + 검수 UI | **핵심 완성.** 로고가 VFX 로 변형돼 나온다 |
-| **M4** | `composite` 엔진, Canvas 레이어 모드 | 픽셀 정확도가 필수인 경우의 대안 |
-| **M5a** | 오디오 L2 — ElevenLabs SFX, `impactAt` 배치 | 임팩트 클랭이 박힌다 |
-| **M5b** | 오디오 L3 — 음악 + 사이드체인 덕킹 | 헐리우드 감이 난다 |
-| **M5c** | 오디오 L1 — MMAudio 동기 층 | 화면을 따라가는 소리까지 |
+| **P0 기반** | web/worker 분리 + pg-boss · 파이프라인 단계 그래프 · 엔진 계약 · 레지스트리(canvas 어댑터로 기존 렌더 이식) · 저장소 어댑터 · 스키마 신설(`workspace_id` 포함) · 기존 데이터 이관 · React 셸 `/app` + 파이프라인 모니터 | 기존 canvas 렌더가 새 파이프라인 · 모니터로 돈다. 골든 프레임 해시 회귀 통과 |
+| **P1 브랜드 · 디렉션** | Brand 킷(스캔 · 색 추출 · 심볼/워드마크 분리 · 세이프존) · 엔드프레임 생성 · Direction IR + 프리셋 6종 + 보드 UI · PLAZION 하드코딩 제거 · 핸드오프 내보내기 후 삭제 | 임의 브랜드로 엔드프레임과 IR 을 만든다. 아직 AI 생성 없음 |
+| **P2 ★ 생성 · 검수** | Seedance REST 스파이크 → 어댑터 + `compile()` · 드래프트 격자 → 히어로 깔때기 · 착지 교체 · 타이밍 · 자동 QA · 검수 화면 · 원장 · 프리플라이트 · 예산 상한 · Quick 경로 | **로고가 VFX 로 변형돼 나오고 검수 · 승인된다. 여기서 멈추고 써 본다** |
+| **P3 사운드** | L2 ElevenLabs → L3 Stable Audio + 덕킹 → L1 MMAudio · Sound 화면 · 매니페스트 재믹스 | 임팩트에 소리가 박힌다 |
+| **P4 납품** | 납품 키트 전부 · 리프레임 · 루프/인트로 · 아웃트로 · ZIP · 리뷰 링크(공개 뷰 · 코멘트 · 승인) | 클라이언트에게 링크 하나로 납품 |
+| **P5 멀티모델** | 두 번째 엔진(Kling 또는 Veo — P2 시점의 `end_image` 지원 여부로 결정) · 라우터 · composite 안전판 + canvas 레이어 모드 · 저가 모델 드래프트 실측 | 벤더 하나가 죽어도 제품이 산다 |
+| **P6 협업 · 출시 준비** | 워크스페이스 · 매직링크 · 역할 · 원장 UI · 옛 페이지 삭제 · 라이선스 법적 확인 결과 반영 | 외부 고객에게 열 수 있다 |
 
-**M3 이 목표다.** M1·M2 는 자리를 만드는 작업이고 M4 는 그 뒤의 선택지다.
-**M3 이 끝나면 일단 멈추고 실제로 써 본다.**
+**순서의 이유**
 
-순서의 이유:
-
-- **M1 이 먼저** — 지금 `render.node.ts` 에 Playwright 가 박혀 있어 엔진을 추가할
-  자리가 없다. 리팩토링 없이 Seedance 를 밀어넣으면 500줄이 900줄이 된다
-- **M2 가 M3 앞** — 프리셋 구조가 브랜드 중립화의 결과물이고, `seedance` 는 M2 가
-  만드는 엔드프레임 없이는 아무것도 못 한다
-- **M5a 가 오디오의 처음** — 임팩트 클랭 하나만 제대로 박혀도 체감 품질이 가장 크게
-  오른다. 음악과 동기 SFX 는 그 위에 얹는 것이다
-- **M5c 가 마지막** — V2A 는 세 층 중 결과 예측이 가장 어렵다. 앞의 두 층으로 기준선을
-  만들어 두고 비교해야 실제로 좋아졌는지 판정할 수 있다
+- P0 없이는 3–6분 잡과 모니터가 성립하지 않는다. 지금 `render.node.ts` 에 Playwright 가 박혀 있어 엔진을 추가할 자리도 없다
+- P1 이 P2 의 입력(엔드프레임 · IR)을 만든다
+- 사운드(P3)가 납품(P4)보다 앞인 건 체감 품질 상승폭이 가장 크기 때문. L2 임팩트 클랭 하나만 박혀도 가장 크게 오른다. L1(V2A)은 결과 예측이 가장 어려워 앞의 두 층으로 기준선을 만든 뒤 붙인다
+- 멀티모델(P5)은 어댑터 계약이 P0 에서 확정되므로 뒤로 미뤄도 비용이 안 는다
 
 ## 15. 리스크
 
 | 리스크 | 대응 |
 |---|---|
-| M1 리팩토링이 기존 렌더를 깨뜨린다 | M1 전에 현재 출력의 골든 파일 확보. 프레임 해시로 회귀 검증 |
-| Canvas 레이어 모드와 플레이트가 어울리지 않는다 | M4 착수 전 수동 합성으로 1편 검증 |
-| Seedance 3–6분 대기가 UI 를 막는다 | `renders` 가 이미 비동기 잡 모델. 폴링 UI 만 추가 |
-| 크레딧 소진 | `credits_spent` 기록 + 제출 전 `get_cost` 프리플라이트. 자동 재시도 금지 |
-| **음악 라이선스가 상용을 막는다** | Stable Audio 기본. 출시 전 법적 확인 필수 |
-| 오디오 제공자가 사라진다 | 세 층 전부 인터페이스로 격리 |
-| 단일 `STUDIO_ADMIN_TOKEN` 으로 외부 개방 불가 | 별도 과제. 그때까지 사내 도구로 운영 |
+| P0 리팩토링이 현재 렌더를 깨뜨림 | 착수 전 골든 프레임 확보. 해시 회귀 테스트가 P0 완료 조건 |
+| 드래프트가 히어로와 다르게 나와 "고른 것과 다른 것"이 옴 | 드래프트는 같은 모델 · 같은 시드 · 해상도만 낮춤을 기본. 저가 모델 드래프트는 P5 에서 실측 후 도입 |
+| Seedance REST 파라미터가 MCP 와 다름 | P2 첫 태스크로 API 스파이크(1편). `mode` · `end_image` 단독 제약 재검증 |
+| 크레딧 소진 · 중복 차감 | 프리플라이트 + 원장 + 제출 무재시도 + 프로젝트 예산 상한 |
+| 음악 라이선스가 광고 용도를 막음 | Stable Audio 기본. P6 전 법적 확인. 미확인 시 외부 판매 금지 |
+| 오디오 제공자 소멸 | 세 층 전부 인터페이스로 격리 |
+| React 이관 중 두 프론트 공존 | `/app` 스트랭글러, 화면 단위 이관, 단계마다 옛 화면 링크 제거 |
+| 단일 개발 리소스로 범위 과다 | P2 에서 멈추는 지점 명시. P3 이후는 P2 실사용 결과로 재우선순위 |
+| 워커 컨테이너가 Orbitron 에서 별도 배포되어야 함 | 같은 이미지 · `CMD` 만 다름. P0 에서 Orbitron 설정 확인 |
 
 ## 16. 하지 않는 것
 
-- **멀티테넌시·회원가입** — 지금은 공유 토큰 하나. 별도 단계
-- **결제·크레딧 정산** — `credits_spent`·`audio_cost_usd` 만 쌓아둔다
-- **Seedance 외 생성 백엔드** — 엔진 계약은 열어두되 구현은 하나
-- **Cloudflare Workers 에서의 렌더** — Workers 에는 Chromium 도 ffmpeg 도 없다
-- **도메인·제품명 변경** — 이름이 내용과 어긋나지만 통합과 독립된 결정이다
-- **내레이션·보이스오버** — 5초에 말이 들어갈 자리가 없다
-- **사용자 음악 업로드** — 저작권 책임 구조가 상용에서 분쟁 소지가 크다
-- **오디오 마스터링 체인** — loudnorm 과 덕킹으로 충분하다
+- 결제 · 크레딧 정산 — 원장만 쌓는다
+- Cloudflare Workers 에서의 렌더 — Chromium 도 ffmpeg 도 없다
+- 내레이션 · 보이스오버 — 5초에 말이 들어갈 자리가 없다
+- 사용자 음악 업로드 — 저작권 책임 구조가 상용에서 분쟁 소지
+- 5초 초과 다샷 구성 · 타임라인 편집기 — 스팅에 과하다
+- 오디오 마스터링 체인 — loudnorm 과 덕킹으로 충분
+- 제품명 · 도메인 변경 — 세계 시장 출시 시 필요하지만 이 설계와 독립된 결정. **별도 안건으로 표시만 한다**
+
+## 17. 작업 규칙 (승계)
+
+- 크레딧을 쓰는 호출은 절대 자동 재시도하지 않는다
+- 생성 원본은 덮어쓰지 않는다
+- 영상 검수는 콘택트 시트 1장으로 한다 (5초 영상 전 프레임 ≈ 22만 토큰, 시트 ≈ 1.5천)
+- 콘택트 시트를 생성 모델에 레퍼런스로 넣지 않는다
 
 ---
 
-# 부록 A · 실측 근거
-
-2026-08-30 세션에서 PLAZION·GreenB 로 16편을 실제 생성하며 측정한 값들.
-이 설계의 모든 수치는 여기서 나왔다.
+# 부록 A · 실측 근거 (2026-08-30, PLAZION · GreenB 16편)
 
 ## A.1 루마키 알파 추출 실패
 
-검정 배경 FORGE 영상에 루마키를 걸어 매트를 뽑고 중간 회색 위에 합성해 확인했다.
+검정 배경 FORGE 영상에 루마키를 걸어 매트를 뽑고 중간 회색 위에 합성해 확인.
 
 | 영역 | 휘도 (0–255) |
 |---|---|
 | 배경 | 3.0 |
 | 로고 평균 (중앙값 62.2) | 83.4 |
-| **로고 하위 25%** | **44.6** |
+| 로고 하위 25% | **44.6** |
 
-로고의 어두운 4분의 1이 휘도 45다. 배경과 벌어지지 않아 루마키가 로고 본체를
-반투명으로 판정했다. 합성 시 로고 색이 죽고 글로우 경계에 검은 프린지가 생겼다.
-screen 블렌드에서는 어두운 로고가 아예 사라졌다.
-
-**대안도 막혀 있다** — 크로마키는 화염·글로우에 색이 물들고, 더블 패스 매트는 AI 가
-같은 프롬프트로 두 번 돌리면 다른 영상을 뱉어 원천 불가능하다.
+로고의 어두운 4분의 1이 휘도 45라 배경과 벌어지지 않는다. 루마키가 로고 본체를 반투명으로 판정했고 합성 시 색이 죽고 검은 프린지가 생겼다. screen 블렌드에서는 어두운 로고가 사라졌다. 크로마키는 화염 · 글로우에 색이 물들고, 더블 패스 매트는 AI 가 같은 프롬프트로 다른 영상을 뱉어 불가능하다. **→ 매트를 뽑지 않고 알파 레이어를 따로 렌더한다.**
 
 ## A.2 오디오 라우드니스 편차
 
 | 프리셋 계열 | mean_volume |
 |---|---|
-| VFX (forge·shard·arc) | −21 ~ −24 dB |
-| 자연 (dew·growth·mist) | −29 ~ −43 dB |
+| VFX (forge · shard · arc) | −21 ~ −24 dB |
+| 자연 (dew · growth · mist) | −29 ~ −43 dB |
 
-편차 18dB. 자연 컨셉은 조용한 것이 정상이므로 목표 라우드니스를 계열별로 나눴다.
-−41dB 를 −16 LUFS 로 올리면 게인이 25dB 라 노이즈 플로어도 같이 올라온다.
+편차 18dB. 자연 컨셉은 조용한 것이 정상이라 목표를 계열별로 나눴다. −41dB 를 −16 LUFS 로 올리면 게인 25dB 라 노이즈 플로어도 올라온다.
 
 ## A.3 출력 규격
 
@@ -621,35 +572,27 @@ screen 블렌드에서는 어두운 로고가 아예 사라졌다.
 | 해상도 | 요청대로 (1080p 상한) |
 | 알파 | 없음 |
 | 코덱 | hevc / aac 32kHz stereo |
+| 소요 | 오디오 포함 1080p 5초 3–6분. 진행 중 `type: "image"` 표기는 벤더 버그 — `status` 만 신뢰 |
 
 ## A.4 로고 소스 오염
-
-애니메이션 시퀀스의 프레임을 로고 소스로 쓸 때의 측정.
 
 | 프레임 | 브랜드 외 색조 | 불투명 픽셀 비율 |
 |---|---|---|
 | 마지막 (0089) | **39.6 %** | 낮음 |
 | 중간 (0042) | 0.2 % | 57 % |
-| 브랜드 원본 PNG | **0.00 %** | 100 % |
+| 브랜드 원본 PNG | 0.00 % | 100 % |
 
-마지막 프레임이 가장 완성형일 것 같지만 글로우·링 잔광이 알파에 섞인다.
-중간 프레임은 오염이 없는 대신 하프톤 디졸브라 로고가 격자로 남는다.
-**결론: 시퀀스에서 뽑지 말고 브랜드 원본 에셋을 쓴다.**
+마지막 프레임은 글로우 · 링 잔광이 알파에 섞이고, 중간 프레임은 하프톤 디졸브라 격자로 남는다. **→ 시퀀스에서 뽑지 말고 브랜드 원본 에셋을 쓴다.**
 
 ## A.5 착지 정확도
 
-`end_image` 를 주고 생성한 결과의 마지막 프레임을 엔드프레임과 비교.
-
-- 워드마크 자획·형태: **보존됨**
-- 브랜드 컬러: **보존됨** (단, `start_image` 를 같이 주면 은색으로 변질)
-- 위치·크기: **미세하게 이동·축소** → 후반작업의 착지 교체가 필요한 이유
-
----
+`end_image` 단독으로 생성한 결과의 마지막 프레임 vs 엔드프레임:
+워드마크 자획 · 형태 **보존** · 브랜드 컬러 **보존**(`start_image` 동시 제공 시 은색 변질) · 위치 · 크기 **미세 이동 · 축소** → 착지 교체가 필요한 이유. 로고가 화면 폭 15%(글자 높이 약 40px)로 작았는데도 자획이 살아남았다.
 
 # 부록 B · 출처
 
-- MMAudio — <https://github.com/hkchengrex/MMAudio> · <https://ai.sony/blog/unlocking-the-future-of-video-to-audio-synthesis-inside-the-mmaudio-model>
-- MMAudio 호스팅 — <https://replicate.com/zsxkib/mmaudio> · <https://www.eachlabs.ai/meta/mm-audio>
+- MMAudio — <https://github.com/hkchengrex/MMAudio> · <https://replicate.com/zsxkib/mmaudio> · <https://www.eachlabs.ai/meta/mm-audio>
 - Eleven Music API — <https://elevenlabs.io/docs/api-reference/music/compose> · <https://elevenlabs.io/docs/eleven-api/guides/how-to/music/composition-plans>
-- ElevenLabs SFX·요금 — <https://elevenlabsmagazine.com/elevenlabs-ai-sound-effects-guide-2026/> · <https://unifically.com/blogs/elevenlabs>
-- 음악 제공자 라이선스 비교 — <https://www.chartlex.com/blog/marketing/ai-music-generator-comparison-2026> · <https://musicapi.ai/blog/best-ai-music-api-2026>
+- ElevenLabs SFX · 요금 — <https://elevenlabsmagazine.com/elevenlabs-ai-sound-effects-guide-2026/>
+- 음악 제공자 라이선스 비교 — <https://www.chartlex.com/blog/marketing/ai-music-generator-comparison-2026>
+- pg-boss — <https://github.com/timgit/pg-boss>
