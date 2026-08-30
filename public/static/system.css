@@ -293,9 +293,11 @@ img { max-width: 100%; display: block; }
 
 .display {
   font-family: var(--display);
-  font-size: clamp(38px, 6.4vw, 84px);
+  /* 80% of the original 38/6.4vw/84 — the three-line hero at full size
+     overpowered the page. */
+  font-size: clamp(30px, 5.1vw, 67px);
   letter-spacing: -0.035em;
-  line-height: 0.98;
+  line-height: 1.02;
 }
 
 .h-section {
